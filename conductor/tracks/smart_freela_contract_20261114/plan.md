@@ -38,9 +38,9 @@
 - [x] Task: Phase Verification & Checkpoint (Refer to workflow.md)
 
 ## Phase 3: NatSpec Documentation, 7-Resource Tags & Final Contract Validation
-- [ ] Task: Add NatSpec documentation to all methods and mark the 7 required resource tags
-    - [ ] Add `/// @notice`, `/// @param`, `/// @return` across all functions
-    - [ ] Ensure all 7 tags (`// [Recurso: TiposDeDados]`, `// [Recurso: Funcoes]`, `// [Recurso: EstruturasDeControle]`, `// [Recurso: ArraysEMappings]`, `// [Recurso: StructsEEnums]`, `// [Recurso: Modificadores]`, `// [Recurso: EventosEErros]`) are clearly marked
+- [x] Task: Add NatSpec documentation to all methods and mark the 7 required resource tags [d31c066]
+    - [x] Add `/// @notice`, `/// @param`, `/// @return` across all functions
+    - [x] Ensure all 7 tags (`// [Recurso: TiposDeDados]`, `// [Recurso: Funcoes]`, `// [Recurso: EstruturasDeControle]`, `// [Recurso: ArraysEMappings]`, `// [Recurso: StructsEEnums]`, `// [Recurso: Modificadores]`, `// [Recurso: EventosEErros]`) are clearly marked
 - [ ] Task: Export ABI and update `artifacts/` or `frontend/config.js`
     - [ ] Generate compiled ABI for the frontend integration
     - [ ] Save contract artifacts and ABI
