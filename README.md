@@ -39,10 +39,10 @@ stateDiagram-v2
 
 | Integrante | RA | Papel na Equipe |
 |---|---|---|
-| **João Castro** | 2315310009 | Contrato Inteligente, Frontend & Deploy na Vercel |
-| **Pedro Yutaro** | 2315310020 | Modelagem SDD, Remix IDE & Deploy na Sepolia |
+| **João Castro** | 2315310009 | Contrato Inteligente, Frontend e Deploy na Vercel |
+| **Pedro Yutaro** | 2315310020 | Modelagem SDD, Remix IDE e Deploy na Sepolia |
 | **Lucas Carvalho** | 2315310012 | Documentação |
-| **Renato Barbosa** | 2315310021 | Vídeo de Demonstração |
+| **Renato Barbosa** | 2315310021 | Vídeo de Demonstração e Slides |
 
 ---
 
@@ -58,7 +58,7 @@ stateDiagram-v2
 * **Link no Sepolia Etherscan:** [https://sepolia.etherscan.io/address/0xaAe2fb64bB43e03e1C1563c59588EbF62EeD2640](https://sepolia.etherscan.io/address/0xaAe2fb64bB43e03e1C1563c59588EbF62EeD2640)
 * **URL da dApp na Vercel:** [https://smart-freela-test-zcep.vercel.app/frontend/](https://smart-freela-test-zcep.vercel.app/frontend/)
 * **Repositório GitHub:** [https://github.com/JlCastr0/smart-freela](https://github.com/JlCastr0/smart-freela)
-* **Vídeo de Demonstração (3 a 5 min):** [https://youtu.be/IgtKXCJj7ag](https://youtu.be/IgtKXCJj7ag)
+* **Vídeo de Demonstração (3 a 5 min):** [https://youtu.be/78CdEWhWyjI](https://youtu.be/78CdEWhWyjI)
 
 ---
 
