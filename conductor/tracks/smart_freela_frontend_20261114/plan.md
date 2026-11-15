@@ -1,14 +1,14 @@
 # Implementation Plan: Frontend Web3.js Smart Freela
 
-## Phase 1: Semantic HTML5 Structure & Responsive CSS3 Design
-- [ ] Task: Build `frontend/index.html` structure with all cards and modals
-    - [ ] Create header with dynamic network dot, account balance, and connect button
-    - [ ] Create create-project card, projects-feed container, owner-admin card, and activity-feed card
-    - [ ] Create modal elements for submitting delivery and resolving disputes
-- [ ] Task: Style `frontend/styles.css` matching teacher's reference aesthetics
-    - [ ] Configure custom properties (:root colors, shadows, borders)
-    - [ ] Build responsive grid layout, status badges, buttons, and alert boxes
-- [ ] Task: Phase Verification & Checkpoint (Refer to workflow.md)
+## Phase 1: Semantic HTML5 Structure & Responsive CSS3 Design [checkpoint: ff40ca1]
+- [x] Task: Build `frontend/index.html` structure with all cards and modals [ff40ca1]
+    - [x] Create header with dynamic network dot, account balance, and connect button
+    - [x] Create create-project card, projects-feed container, owner-admin card, and activity-feed card
+    - [x] Create modal elements for submitting delivery and resolving disputes
+- [x] Task: Style `frontend/styles.css` matching teacher's reference aesthetics [ff40ca1]
+    - [x] Configure custom properties (:root colors, shadows, borders)
+    - [x] Build responsive grid layout, status badges, buttons, and alert boxes
+- [x] Task: Phase Verification & Checkpoint (Refer to workflow.md)
 
 ## Phase 2: Web3.js Connection, Network Switch & Read Queries
 - [ ] Task: Implement MetaMask connection and Sepolia network handling in `frontend/app.js`
