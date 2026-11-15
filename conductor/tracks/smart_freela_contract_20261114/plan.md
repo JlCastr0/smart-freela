@@ -6,7 +6,7 @@
     - [x] Verify environment execution with a baseline test
 - [x] Task: Phase Verification & Checkpoint (Refer to workflow.md)
 
-## Phase 2: Core Data Structures & Escrow Contract Implementation (TDD)
+## Phase 2: Core Data Structures & Escrow Contract Implementation (TDD) [checkpoint: 61d04f2]
 - [x] Task: Write failing tests for SmartFreela data structures, deployment, and creation of projects with ETH
     - [x] Write unit test for contract deployment (dono immutable, taxa constant)
     - [x] Write unit test for `criarProjeto` requiring `msg.value > 0`, non-empty title/description, emitting `ProjetoCriado`
@@ -35,7 +35,7 @@
     - [x] Implement owner withdrawal of platform fees
     - [x] Implement pagination loop (`for` with limit) and view queries
     - [x] Run tests and confirm pass (Green Phase)
-- [ ] Task: Phase Verification & Checkpoint (Refer to workflow.md)
+- [x] Task: Phase Verification & Checkpoint (Refer to workflow.md)
 
 ## Phase 3: NatSpec Documentation, 7-Resource Tags & Final Contract Validation
 - [ ] Task: Add NatSpec documentation to all methods and mark the 7 required resource tags
