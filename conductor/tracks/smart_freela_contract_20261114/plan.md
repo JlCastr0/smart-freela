@@ -24,17 +24,17 @@
     - [x] Implement modifiers (`noStatus`, `apenasCliente`, `apenasFreelancer`)
     - [x] Implement business methods and custom errors (`StatusIncorreto`, `AcessoNegado`, `FalhaNoPagamento`)
     - [x] Run tests and confirm pass (Green Phase)
-- [ ] Task: Write failing tests for cancellation, dispute resolution, fee withdrawal, and query functions
-    - [ ] Write unit test for `cancelarProjeto` refunding ETH to client
-    - [ ] Write unit test for `abrirDisputa` and `resolverDisputa` (owner split)
-    - [ ] Write unit test for `sacarTaxas` by owner
-    - [ ] Write unit test for view/pure helper functions and user project pagination
-    - [ ] Run test and confirm failure (Red Phase)
-- [ ] Task: Implement `cancelarProjeto`, `abrirDisputa`, `resolverDisputa`, `sacarTaxas`, and view/pure helpers with pagination
-    - [ ] Implement cancellation and dispute methods
-    - [ ] Implement owner withdrawal of platform fees
-    - [ ] Implement pagination loop (`for` with limit) and view queries
-    - [ ] Run tests and confirm pass (Green Phase)
+- [x] Task: Write failing tests for cancellation, dispute resolution, fee withdrawal, and query functions
+    - [x] Write unit test for `cancelarProjeto` refunding ETH to client
+    - [x] Write unit test for `abrirDisputa` and `resolverDisputa` (owner split)
+    - [x] Write unit test for `sacarTaxas` by owner
+    - [x] Write unit test for view/pure helper functions and user project pagination
+    - [x] Run test and confirm failure (Red Phase)
+- [x] Task: Implement `cancelarProjeto`, `abrirDisputa`, `resolverDisputa`, `sacarTaxas`, and view/pure helpers with pagination [61d04f2]
+    - [x] Implement cancellation and dispute methods
+    - [x] Implement owner withdrawal of platform fees
+    - [x] Implement pagination loop (`for` with limit) and view queries
+    - [x] Run tests and confirm pass (Green Phase)
 - [ ] Task: Phase Verification & Checkpoint (Refer to workflow.md)
 
 ## Phase 3: NatSpec Documentation, 7-Resource Tags & Final Contract Validation
