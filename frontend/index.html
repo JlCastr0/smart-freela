@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Freela — Escrow Descentralizado na Sepolia</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Web3.js 4.x via CDN oficial conforme o Guia do Trabalho Prático -->
+  <script src="https://cdn.jsdelivr.net/npm/web3@4.16.0/dist/web3.min.js"></script>
+  <!-- Configuração contendo CONTRACT_ADDRESS e CONTRACT_ABI -->
+  <script src="config.js"></script>
+</head>
+<body>
+  <!-- CABEÇALHO -->
+  <header>
+    <div class="brand">
+      <div class="eyebrow">DAPP ETHEREUM SEPOLIA · TRABALHO PRÁTICO</div>
+      <h1>💼 Smart Freela</h1>
+      <p>Custódia financeira descentralizada para serviços freelance sem intermediários abusivos</p>
+    </div>
+    <div class="network-box">
+      <span id="networkDot" class="dot"></span>
+      <div class="network-info">
+        <strong id="networkText">MetaMask Desconectada</strong>
+        <span id="walletAccount">Clique ao lado para conectar</span>
+        <span id="walletBalance" class="balance-badge"></span>
+      </div>
+      <button id="connectBtn" class="btn btn-connect">Conectar MetaMask</button>
+    </div>
+  </header>
+
+  <!-- BANNER GLOBAL DE STATUS & FEEDBACK DE TRANSAÇÕES -->
+  <div class="container">
+    <div id="statusBanner" class="status-banner neutral" hidden>
+      <div class="status-content">
+        <span id="statusIcon">ℹ️</span>
+        <span id="statusMessage">Aguardando interação...</span>
+      </div>
+      <a id="txLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Ver no Sepolia Etherscan ↗</a>
+    </div>
+
+    <!-- CONTRATO NÃO CONFIGURADO (AVISO) -->
+    <div id="contractWarning" class="alert-warning" hidden>
+      ⚠️ <strong>Atenção:</strong> O endereço do contrato ainda não foi configurado em <code>frontend/config.js</code>. Faça o deploy no Remix e insira o endereço.
+    </div>
+
+    <!-- GRID PRINCIPAL -->
+    <main class="grid-main">
+      
+      <!-- COLUNA DA ESQUERDA: Formulários e Ações -->
+      <div class="col-actions">
+
+        <!-- CARD: CRIAR NOVO PROJETO (ESCROW COM ETH) -->
+        <section class="card">
+          <div class="card-header">
+            <h2>➕ Publicar Novo Projeto</h2>
+            <span class="card-badge">Cliente</span>
+          </div>
+          <p class="card-desc">Deposite o valor acordado em ETH no smart contract. O pagamento só é liberado ao freelancer após sua aprovação.</p>
+          
+          <form id="formCriarProjeto" onsubmit="return false;">
+            <div class="form-group">
+              <label for="tituloProjeto">Título do Projeto</label>
+              <input type="text" id="tituloProjeto" placeholder="Ex: Criação de Landing Page em HTML/CSS" required maxlength="80">
+            </div>
+
+            <div class="form-group">
+              <label for="descricaoProjeto">Descrição & Requisitos</label>
+              <textarea id="descricaoProjeto" rows="3" placeholder="Detalhes dos requisitos, prazos e entregáveis esperados..." required></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="valorProjeto">Depósito em Garantia (ETH)</label>
+              <div class="input-eth-wrapper">
+                <input type="number" id="valorProjeto" placeholder="0.05" step="0.001" min="0.0001" required>
+                <span class="eth-tag">ETH</span>
+              </div>
+              <small class="form-hint">Taxa de protocolo: 2% retida apenas na aprovação final.</small>
+            </div>
+
+            <button type="button" id="btnCriarProjeto" class="btn btn-primary btn-block">
+              🔒 Criar Projeto & Bloquear ETH
+            </button>
+          </form>
+        </section>
+
+        <!-- CARD: PAINEL ADMINISTRATIVO DO DONO (VISÍVEL SOMENTE PARA O OWNER) -->
+        <section id="cardAdmin" class="card admin-card" hidden>
+          <div class="card-header">
+            <h2>🛡️ Painel do Administrador</h2>
+            <span class="card-badge admin-badge">Dono</span>
+          </div>
+          <p class="card-desc">Controle de governança exclusivo da carteira proprietária (immutable).</p>
+
+          <div class="admin-stats">
+            <div class="stat-item">
+              <span class="stat-label">Taxas Acumuladas da Plataforma:</span>
+              <strong id="adminTaxas" class="stat-val">0.0000 ETH</strong>
+            </div>
+            <button type="button" id="btnSacarTaxas" class="btn btn-secondary btn-block">
+              💰 Sacar Taxas da Plataforma
+            </button>
+          </div>
+        </section>
+
+        <!-- CARD: FEED DE ATIVIDADES / EVENTOS ON-CHAIN -->
+        <section class="card">
+          <div class="card-header">
+            <h2>📡 Feed de Eventos On-Chain</h2>
+            <span class="card-badge info-badge">Sepolia</span>
+          </div>
+          <p class="card-desc">Eventos emitidos em tempo real pelo contrato inteligente com parâmetros indexados.</p>
+          <div id="feedEventos" class="events-feed">
+            <div class="feed-empty">Conecte sua carteira para carregar o histórico de eventos.</div>
+          </div>
+        </section>
+      </div>
+
+      <!-- COLUNA DA DIREITA: Feed de Projetos -->
+      <div class="col-projects">
+        <section class="card projects-container-card">
+          <div class="card-header flex-header">
+            <div>
+              <h2>📋 Mural de Demandas Freelance</h2>
+              <p class="card-desc">Explore os projetos abertos, acompanhe os seus ou submeta entregas.</p>
+            </div>
+            <button id="btnAtualizar" class="btn btn-sm btn-outline">🔄 Atualizar</button>
+          </div>
+
+          <!-- FILTROS -->
+          <div class="filter-tabs">
+            <button class="tab active" data-filter="todos">Todos (<span id="totalTodos">0</span>)</button>
+            <button class="tab" data-filter="abertos">Abertos (<span id="totalAbertos">0</span>)</button>
+            <button class="tab" data-filter="meus">Meus Projetos (<span id="totalMeus">0</span>)</button>
+          </div>
+
+          <!-- LISTA DINÂMICA DE PROJETOS -->
+          <div id="listaProjetos" class="projects-list">
+            <div class="loading-state">Carregando projetos da blockchain...</div>
+          </div>
+
+          <!-- ESTADO VAZIO -->
+          <div id="semProjetos" class="empty-state" hidden>
+            <p>Nenhum projeto encontrado nesta categoria.</p>
+          </div>
+        </section>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- MODAL: SUBMETER ENTREGA DE PROJETO -->
+  <div id="modalEntrega" class="modal-backdrop" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h3>🚀 Submeter Comprovante de Entrega</h3>
+        <button class="btn-close" onclick="fecharModalEntrega()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Gere uma impressão digital (hash criptográfico SHA-256) do seu trabalho ou informe o hash de commit/IPFS.</p>
+        <div class="form-group">
+          <label for="textoEntrega">Link do Repositório ou Texto de Entrega</label>
+          <input type="text" id="textoEntrega" placeholder="https://github.com/usuario/projeto/commit/abc123" oninput="gerarHashLocal()">
+        </div>
+        <div class="form-group">
+          <label>Hash Gerado (bytes32 que será salvo on-chain):</label>
+          <code id="previewHashEntrega" class="hash-code">0x0000000000000000000000000000000000000000000000000000000000000000</code>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="fecharModalEntrega()">Cancelar</button>
+        <button type="button" id="btnConfirmarEntrega" class="btn btn-primary">Registrar Entrega On-Chain</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: RESOLVER DISPUTA (DONO) -->
+  <div id="modalDisputa" class="modal-backdrop" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h3>⚖️ Mediação de Disputa</h3>
+        <button class="btn-close" onclick="fecharModalDisputa()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Defina a porcentagem do depósito em caução que será repassada ao freelancer. O restante retornará ao cliente.</p>
+        <div class="form-group">
+          <label for="percentualFreelancer">Percentual para o Freelancer (0 a 100%):</label>
+          <input type="number" id="percentualFreelancer" min="0" max="100" value="50" oninput="atualizarPreviewDisputa()">
+          <span class="form-hint" id="previewDisputaSplit">Freelancer: 50% | Cliente: 50%</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="fecharModalDisputa()">Cancelar</button>
+        <button type="button" id="btnConfirmarResolucao" class="btn btn-danger">Executar Resolução On-Chain</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RODAPÉ -->
+  <footer>
+    <div class="footer-content">
+      <strong>Smart Freela · Aplicação Descentralizada na Ethereum Sepolia</strong>
+      <span>Trabalho Prático da disciplina de Blockchain · Solidity ^0.8.24 + Web3.js 4.x</span>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
