@@ -41,7 +41,7 @@ O **Smart Freela** resolve este dilema utilizando a blockchain pública **Ethere
 
 ## 4. Link do Frontend no Ar (Vercel)
 
-* **URL da Aplicação:** `https://smart-freela.vercel.app` *(ou URL gerada no seu deploy da Vercel)*
+* **URL da Aplicação:** [https://smart-freela-test-zcep.vercel.app](https://smart-freela-test-zcep.vercel.app)
 * **Repositório GitHub:** `https://github.com/JlCastr0/smart-freela`
 
 ---
