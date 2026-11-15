@@ -230,4 +230,119 @@ contract SmartFreela {
         uint256 taxa = _calcularTaxa(valorBruto);
         return valorBruto - taxa;
     }
+
+    /**
+     * @notice Permite ao cliente cancelar um projeto que ainda está Aberto, recebendo 100% do ETH de volta.
+     * @param id Identificador do projeto.
+     */
+    function cancelarProjeto(uint256 id) external noStatus(id, StatusProjeto.Aberto) apenasCliente(id) {
+        projetos[id].status = StatusProjeto.Cancelado;
+        projetos[id].finalizadoEm = block.timestamp;
+
+        _processarPagamento(projetos[id].cliente, projetos[id].valor);
+
+        emit ProjetoCancelado(id, msg.sender);
+    }
+
+    /**
+     * @notice Abre uma disputa para mediação caso as partes discordem.
+     * @param id Identificador do projeto.
+     */
+    function abrirDisputa(uint256 id) external {
+        if (projetos[id].id == 0) revert ProjetoInexistente();
+        if (msg.sender != projetos[id].cliente && msg.sender != projetos[id].freelancer) {
+            revert AcessoNegado();
+        }
+        if (
+            projetos[id].status != StatusProjeto.EmAndamento &&
+            projetos[id].status != StatusProjeto.Entregue
+        ) {
+            revert StatusIncorreto(projetos[id].status, StatusProjeto.EmAndamento);
+        }
+
+        projetos[id].status = StatusProjeto.EmDisputa;
+
+        emit DisputaAberta(id, msg.sender);
+    }
+
+    /**
+     * @notice O administrador resolve a disputa definindo a divisão percentual dos fundos.
+     * @param id Identificador do projeto em disputa.
+     * @param percentualFreelancer Percentual (0 a 100) destinado ao freelancer.
+     */
+    function resolverDisputa(
+        uint256 id,
+        uint256 percentualFreelancer
+    ) external apenasDono noStatus(id, StatusProjeto.EmDisputa) {
+        if (percentualFreelancer > 100) revert PercentualInvalido();
+
+        projetos[id].status = StatusProjeto.Finalizado;
+        projetos[id].finalizadoEm = block.timestamp;
+
+        uint256 valorFreelancer = (projetos[id].valor * percentualFreelancer) / 100;
+        uint256 valorCliente = projetos[id].valor - valorFreelancer;
+
+        if (valorFreelancer > 0) {
+            _processarPagamento(projetos[id].freelancer, valorFreelancer);
+        }
+        if (valorCliente > 0) {
+            _processarPagamento(projetos[id].cliente, valorCliente);
+        }
+
+        emit DisputaResolvida(id, valorFreelancer, valorCliente);
+    }
+
+    /**
+     * @notice Permite ao dono retirar as taxas da plataforma acumuladas.
+     */
+    function sacarTaxas() external apenasDono {
+        uint256 quantia = taxasAcumuladas;
+        if (quantia == 0) revert ValorInvalido();
+
+        taxasAcumuladas = 0;
+        _processarPagamento(payable(dono), quantia);
+
+        emit TaxasSacadas(dono, quantia);
+    }
+
+    /**
+     * @notice Retorna os IDs dos projetos dos quais um usuário participou, com suporte a paginação.
+     * @dev Usa laço for com limite controlado para prevenção de estouro de gas.
+     * [Recurso: EstruturasDeControle]
+     * @param usuario Endereço da carteira a consultar.
+     * @param inicio Índice de início para a busca.
+     * @param limite Quantidade máxima de itens a retornar (máx 50).
+     */
+    function listarProjetosDoUsuario(
+        address usuario,
+        uint256 inicio,
+        uint256 limite
+    ) external view returns (uint256[] memory ids) {
+        require(limite > 0 && limite <= 50, "Limite deve ser entre 1 e 50");
+        uint256 total = totalProjetos;
+        if (inicio >= total) {
+            return new uint256[](0);
+        }
+
+        uint256 fim = inicio + limite;
+        if (fim > total) {
+            fim = total;
+        }
+
+        uint256 contagem = 0;
+        for (uint256 i = inicio + 1; i <= fim; i++) {
+            if (projetosParticipados[usuario][i]) {
+                contagem++;
+            }
+        }
+
+        ids = new uint256[](contagem);
+        uint256 idx = 0;
+        for (uint256 i = inicio + 1; i <= fim; i++) {
+            if (projetosParticipados[usuario][i]) {
+                ids[idx] = i;
+                idx++;
+            }
+        }
+    }
 }
