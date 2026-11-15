@@ -32,10 +32,10 @@ O **Smart Freela** resolve este dilema utilizando a blockchain pública **Ethere
 
 * **Contrato:** `SmartFreela.sol`
 * **Rede:** Ethereum Sepolia Testnet (Chain ID `11155111` / `0xaa36a7`)
-* **Endereço do Contrato:** `COLOQUE_O_ENDERECO_DO_CONTRATO_AQUI`
-* **Sepolia Etherscan:** [Ver Contrato no Sepolia Etherscan](https://sepolia.etherscan.io/address/COLOQUE_O_ENDERECO_DO_CONTRATO_AQUI) *(Atualize com o endereço após o deploy)*
+* **Endereço do Contrato:** `0xaAe2fb64bB43e03e1C1563c59588EbF62EeD2640`
+* **Sepolia Etherscan:** [https://sepolia.etherscan.io/address/0xaAe2fb64bB43e03e1C1563c59588EbF62EeD2640](https://sepolia.etherscan.io/address/0xaAe2fb64bB43e03e1C1563c59588EbF62EeD2640)
 
-> **Nota para Deploy:** O contrato pode ser compilado no **Remix IDE** com Solidity `0.8.24` e implantado via **Injected Provider - MetaMask** na rede Sepolia. Após o deploy, basta colar o endereço em `frontend/config.js` e atualizar esta seção.
+> **Status do Deploy:** Contrato implantado e ativo com sucesso via Remix IDE na rede de testes Sepolia.
 
 ---
 

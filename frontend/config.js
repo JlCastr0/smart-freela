@@ -1,6 +1,5 @@
 // Endereço do contrato SmartFreela na rede Ethereum Sepolia.
-// Atualize após fazer o deploy no Remix ou via script de deploy.
-const CONTRACT_ADDRESS = "COLOQUE_O_ENDERECO_DO_CONTRATO_AQUI";
+const CONTRACT_ADDRESS = "0xaAe2fb64bB43e03e1C1563c59588EbF62EeD2640";
 
 const CONTRACT_ABI = [
   {
