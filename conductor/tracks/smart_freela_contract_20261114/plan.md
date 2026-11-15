@@ -1,10 +1,10 @@
 # Implementation Plan: Contrato Inteligente SmartFreela.sol
 
-## Phase 1: Environment & Test Harness Setup
+## Phase 1: Environment & Test Harness Setup [checkpoint: fe8cec1]
 - [x] Task: Setup local Solidity compilation & test environment [fe8cec1]
     - [x] Create/configure test runner (Mocha/Chai or Hardhat script) to compile and test Solidity contracts
     - [x] Verify environment execution with a baseline test
-- [ ] Task: Phase Verification & Checkpoint (Refer to workflow.md)
+- [x] Task: Phase Verification & Checkpoint (Refer to workflow.md)
 
 ## Phase 2: Core Data Structures & Escrow Contract Implementation (TDD)
 - [ ] Task: Write failing tests for SmartFreela data structures, deployment, and creation of projects with ETH
