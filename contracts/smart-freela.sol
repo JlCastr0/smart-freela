@@ -151,4 +151,83 @@ contract SmartFreela {
         if (projetos[id].id == 0) revert ProjetoInexistente();
         return projetos[id];
     }
+
+    /**
+     * @notice Permite a um freelancer aceitar um projeto que esteja aberto.
+     * @param id Identificador do projeto.
+     */
+    function aceitarProjeto(uint256 id) external noStatus(id, StatusProjeto.Aberto) {
+        if (msg.sender == projetos[id].cliente) revert AcessoNegado();
+
+        projetos[id].freelancer = payable(msg.sender);
+        projetos[id].status = StatusProjeto.EmAndamento;
+        projetosParticipados[msg.sender][id] = true;
+
+        emit ProjetoAceito(id, msg.sender);
+    }
+
+    /**
+     * @notice Registra o envio da entrega com hash criptográfico comprobatório.
+     * @param id Identificador do projeto.
+     * @param hashEntrega Hash SHA-256 ou CID do IPFS/Git representando o trabalho.
+     */
+    function entregarProjeto(
+        uint256 id,
+        bytes32 hashEntrega
+    ) external noStatus(id, StatusProjeto.EmAndamento) apenasFreelancer(id) {
+        if (hashEntrega == bytes32(0)) revert DadosInvalidos();
+
+        projetos[id].hashEntrega = hashEntrega;
+        projetos[id].status = StatusProjeto.Entregue;
+
+        emit ProjetoEntregue(id, hashEntrega);
+    }
+
+    /**
+     * @notice Cliente aprova a entrega realizada e libera o pagamento ao freelancer.
+     * @dev Implementa o padrão Checks-Effects-Interactions contra reentrância.
+     * @param id Identificador do projeto.
+     */
+    function aprovarEFinalizar(
+        uint256 id
+    ) external noStatus(id, StatusProjeto.Entregue) apenasCliente(id) {
+        // Effects
+        projetos[id].status = StatusProjeto.Finalizado;
+        projetos[id].finalizadoEm = block.timestamp;
+
+        uint256 taxa = _calcularTaxa(projetos[id].valor);
+        uint256 valorLiquido = projetos[id].valor - taxa;
+        taxasAcumuladas += taxa;
+
+        // Interactions
+        _processarPagamento(projetos[id].freelancer, valorLiquido);
+
+        emit ProjetoFinalizado(id, projetos[id].freelancer, valorLiquido);
+    }
+
+    /**
+     * @dev Processa transferência de ETH com validação de sucesso.
+     * [Recurso: Funcoes] - visibilidade internal
+     */
+    function _processarPagamento(address payable destinatario, uint256 quantia) internal {
+        (bool sucesso, ) = destinatario.call{value: quantia}("");
+        if (!sucesso) revert FalhaNoPagamento();
+    }
+
+    /**
+     * @dev Calcula a taxa da plataforma em wei.
+     * [Recurso: Funcoes] - visibilidade private pure
+     */
+    function _calcularTaxa(uint256 valor) private pure returns (uint256) {
+        return (valor * TAXA_PLATAFORMA_PERCENTUAL) / 100;
+    }
+
+    /**
+     * @notice Calcula o valor líquido que o freelancer receberá após dedução da taxa.
+     * [Recurso: Funcoes] - visibilidade public pure
+     */
+    function calcularValorLiquido(uint256 valorBruto) public pure returns (uint256) {
+        uint256 taxa = _calcularTaxa(valorBruto);
+        return valorBruto - taxa;
+    }
 }

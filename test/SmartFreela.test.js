@@ -67,4 +67,79 @@ describe("SmartFreela Contract", function () {
       expect(proj.status).to.equal(0n); // StatusProjeto.Aberto
     });
   });
+
+  describe("Lifecycle: Aceitar, Entregar e Aprovar", function () {
+    const deposit = ethers.parseEther("1.0");
+
+    beforeEach(async function () {
+      await smartFreela.connect(client).criarProjeto("Website", "Construir site em HTML/CSS", { value: deposit });
+    });
+
+    it("should allow a freelancer to accept project and emit ProjetoAceito", async function () {
+      await expect(smartFreela.connect(client).aceitarProjeto(1n)).to.be.revertedWithCustomError(
+        smartFreela,
+        "AcessoNegado"
+      );
+
+      await expect(smartFreela.connect(freelancer).aceitarProjeto(1n))
+        .to.emit(smartFreela, "ProjetoAceito")
+        .withArgs(1n, freelancer.address);
+
+      const proj = await smartFreela.obterProjeto(1n);
+      expect(proj.freelancer).to.equal(freelancer.address);
+      expect(proj.status).to.equal(1n); // EmAndamento
+    });
+
+    it("should allow freelancer to submit deliverable and emit ProjetoEntregue", async function () {
+      await smartFreela.connect(freelancer).aceitarProjeto(1n);
+
+      const hashEntrega = ethers.keccak256(ethers.toUtf8Bytes("https://github.com/myrepo/commit/123"));
+
+      await expect(
+        smartFreela.connect(stranger).entregarProjeto(1n, hashEntrega)
+      ).to.be.revertedWithCustomError(smartFreela, "AcessoNegado");
+
+      await expect(
+        smartFreela.connect(freelancer).entregarProjeto(1n, ethers.ZeroHash)
+      ).to.be.revertedWithCustomError(smartFreela, "DadosInvalidos");
+
+      await expect(smartFreela.connect(freelancer).entregarProjeto(1n, hashEntrega))
+        .to.emit(smartFreela, "ProjetoEntregue")
+        .withArgs(1n, hashEntrega);
+
+      const proj = await smartFreela.obterProjeto(1n);
+      expect(proj.hashEntrega).to.equal(hashEntrega);
+      expect(proj.status).to.equal(2n); // Entregue
+    });
+
+    it("should allow client to approve deliverable and payout freelancer (net 98%) with CEI pattern", async function () {
+      await smartFreela.connect(freelancer).aceitarProjeto(1n);
+      const hashEntrega = ethers.keccak256(ethers.toUtf8Bytes("ipfs://QmHash123"));
+      await smartFreela.connect(freelancer).entregarProjeto(1n, hashEntrega);
+
+      // Stranger cannot approve
+      await expect(
+        smartFreela.connect(stranger).aprovarEFinalizar(1n)
+      ).to.be.revertedWithCustomError(smartFreela, "AcessoNegado");
+
+      const initialFreelancerBalance = await ethers.provider.getBalance(freelancer.address);
+
+      // Taxa = 2% de 1.0 ETH = 0.02 ETH. Liquido = 0.98 ETH.
+      const taxaEsperada = ethers.parseEther("0.02");
+      const liquidoEsperado = ethers.parseEther("0.98");
+
+      await expect(smartFreela.connect(client).aprovarEFinalizar(1n))
+        .to.emit(smartFreela, "ProjetoFinalizado")
+        .withArgs(1n, freelancer.address, liquidoEsperado);
+
+      const finalFreelancerBalance = await ethers.provider.getBalance(freelancer.address);
+      expect(finalFreelancerBalance - initialFreelancerBalance).to.equal(liquidoEsperado);
+
+      expect(await smartFreela.taxasAcumuladas()).to.equal(taxaEsperada);
+
+      const proj = await smartFreela.obterProjeto(1n);
+      expect(proj.status).to.equal(3n); // Finalizado
+      expect(proj.finalizadoEm).to.be.gt(0n);
+    });
+  });
 });
