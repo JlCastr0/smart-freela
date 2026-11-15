@@ -37,11 +37,11 @@
     - [x] Run tests and confirm pass (Green Phase)
 - [x] Task: Phase Verification & Checkpoint (Refer to workflow.md)
 
-## Phase 3: NatSpec Documentation, 7-Resource Tags & Final Contract Validation
+## Phase 3: NatSpec Documentation, 7-Resource Tags & Final Contract Validation [checkpoint: a20110c]
 - [x] Task: Add NatSpec documentation to all methods and mark the 7 required resource tags [d31c066]
     - [x] Add `/// @notice`, `/// @param`, `/// @return` across all functions
     - [x] Ensure all 7 tags (`// [Recurso: TiposDeDados]`, `// [Recurso: Funcoes]`, `// [Recurso: EstruturasDeControle]`, `// [Recurso: ArraysEMappings]`, `// [Recurso: StructsEEnums]`, `// [Recurso: Modificadores]`, `// [Recurso: EventosEErros]`) are clearly marked
 - [x] Task: Export ABI and update `artifacts/` or `frontend/config.js` [a20110c]
     - [x] Generate compiled ABI for the frontend integration
     - [x] Save contract artifacts and ABI
-- [ ] Task: Phase Verification & Checkpoint (Refer to workflow.md)
+- [x] Task: Phase Verification & Checkpoint (Refer to workflow.md)
