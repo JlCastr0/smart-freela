@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Smart Freela — Escrow Descentralizado na Sepolia</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:ital,wght@0,100..900;1,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Roboto+Mono:ital,wght@0,100..700;1,100..700&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
   <!-- Web3.js 4.x via CDN oficial conforme o Guia do Trabalho Prático -->
   <script src="https://cdn.jsdelivr.net/npm/web3@4.16.0/dist/web3.min.js"></script>
   <!-- Configuração contendo CONTRACT_ADDRESS e CONTRACT_ABI -->
@@ -15,8 +18,9 @@
   <header>
     <div class="brand">
       <div class="eyebrow">DAPP ETHEREUM SEPOLIA · TRABALHO PRÁTICO</div>
-      <h1>💼 Smart Freela</h1>
-      <p>Custódia financeira descentralizada para serviços freelance sem intermediários abusivos</p>
+        <img class="logo" src="./assets/logo.png"/>
+      </div>
+      <p class="sentence">Custódia financeira descentralizada para serviços freelance sem intermediários abusivos</p>
     </div>
     <div class="network-box">
       <span id="networkDot" class="dot"></span>
@@ -34,7 +38,7 @@
     <div id="statusBanner" class="status-banner neutral" hidden>
       <div class="status-content">
         <span id="statusIcon">ℹ️</span>
-        <span id="statusMessage">Aguardando interação...</span>
+        <span id="statusMessage" class="status-message">Aguardando interação...</span>
       </div>
       <a id="txLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Ver no Sepolia Etherscan ↗</a>
     </div>
