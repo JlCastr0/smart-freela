@@ -2,3 +2,5 @@
 *.png
 *.jpeg
 .prompts/
+node_modules/
+cache/

@@ -1,0 +1,28 @@
+{
+  "name": "smart-freela",
+  "version": "1.0.0",
+  "description": "REMIX DEFAULT WORKSPACE",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "hardhat test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PedroYutaroUEA/smart-freela.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/PedroYutaroUEA/smart-freela/issues"
+  },
+  "homepage": "https://github.com/PedroYutaroUEA/smart-freela#readme",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.29.2"
+  }
+}
