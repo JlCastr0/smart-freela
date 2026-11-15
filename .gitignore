@@ -1,6 +1,7 @@
 *.pdf
 *.png
 *.jpeg
+!docs/prints/**
 .prompts/
 node_modules/
 cache/
