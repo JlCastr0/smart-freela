@@ -15,15 +15,15 @@
     - [x] Define `enum StatusProjeto` and `struct Projeto`
     - [x] Implement constructor, `criarProjeto` payable, and state variables
     - [x] Run tests and confirm pass (Green Phase)
-- [ ] Task: Write failing tests for project lifecycle (aceitar, entregar, aprovarEFinalizar) and CEI pattern
-    - [ ] Write unit test for `aceitarProjeto` transitioning to `EmAndamento`
-    - [ ] Write unit test for `entregarProjeto` with `bytes32` hash transitioning to `Entregue`
-    - [ ] Write unit test for `aprovarEFinalizar` paying out net ETH to freelancer and accumulating platform fee
-    - [ ] Run test and confirm failure (Red Phase)
-- [ ] Task: Implement `aceitarProjeto`, `entregarProjeto`, and `aprovarEFinalizar` with custom errors and events
-    - [ ] Implement modifiers (`noStatus`, `apenasCliente`, `apenasFreelancer`)
-    - [ ] Implement business methods and custom errors (`StatusIncorreto`, `AcessoNegado`, `FalhaNoPagamento`)
-    - [ ] Run tests and confirm pass (Green Phase)
+- [x] Task: Write failing tests for project lifecycle (aceitar, entregar, aprovarEFinalizar) and CEI pattern
+    - [x] Write unit test for `aceitarProjeto` transitioning to `EmAndamento`
+    - [x] Write unit test for `entregarProjeto` with `bytes32` hash transitioning to `Entregue`
+    - [x] Write unit test for `aprovarEFinalizar` paying out net ETH to freelancer and accumulating platform fee
+    - [x] Run test and confirm failure (Red Phase)
+- [x] Task: Implement `aceitarProjeto`, `entregarProjeto`, and `aprovarEFinalizar` with custom errors and events [1306b8b]
+    - [x] Implement modifiers (`noStatus`, `apenasCliente`, `apenasFreelancer`)
+    - [x] Implement business methods and custom errors (`StatusIncorreto`, `AcessoNegado`, `FalhaNoPagamento`)
+    - [x] Run tests and confirm pass (Green Phase)
 - [ ] Task: Write failing tests for cancellation, dispute resolution, fee withdrawal, and query functions
     - [ ] Write unit test for `cancelarProjeto` refunding ETH to client
     - [ ] Write unit test for `abrirDisputa` and `resolverDisputa` (owner split)
