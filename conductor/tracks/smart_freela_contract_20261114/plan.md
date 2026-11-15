@@ -7,14 +7,14 @@
 - [x] Task: Phase Verification & Checkpoint (Refer to workflow.md)
 
 ## Phase 2: Core Data Structures & Escrow Contract Implementation (TDD)
-- [ ] Task: Write failing tests for SmartFreela data structures, deployment, and creation of projects with ETH
-    - [ ] Write unit test for contract deployment (dono immutable, taxa constant)
-    - [ ] Write unit test for `criarProjeto` requiring `msg.value > 0`, non-empty title/description, emitting `ProjetoCriado`
-    - [ ] Run test and confirm failure (Red Phase)
-- [ ] Task: Implement SmartFreela constructor, constants, immutable variables, structs, enums, and `criarProjeto`
-    - [ ] Define `enum StatusProjeto` and `struct Projeto`
-    - [ ] Implement constructor, `criarProjeto` payable, and state variables
-    - [ ] Run tests and confirm pass (Green Phase)
+- [x] Task: Write failing tests for SmartFreela data structures, deployment, and creation of projects with ETH
+    - [x] Write unit test for contract deployment (dono immutable, taxa constant)
+    - [x] Write unit test for `criarProjeto` requiring `msg.value > 0`, non-empty title/description, emitting `ProjetoCriado`
+    - [x] Run test and confirm failure (Red Phase)
+- [x] Task: Implement SmartFreela constructor, constants, immutable variables, structs, enums, and `criarProjeto` [f6ae981]
+    - [x] Define `enum StatusProjeto` and `struct Projeto`
+    - [x] Implement constructor, `criarProjeto` payable, and state variables
+    - [x] Run tests and confirm pass (Green Phase)
 - [ ] Task: Write failing tests for project lifecycle (aceitar, entregar, aprovarEFinalizar) and CEI pattern
     - [ ] Write unit test for `aceitarProjeto` transitioning to `EmAndamento`
     - [ ] Write unit test for `entregarProjeto` with `bytes32` hash transitioning to `Entregue`
