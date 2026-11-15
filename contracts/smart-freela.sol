@@ -146,6 +146,7 @@ contract SmartFreela {
     /**
      * @notice Consulta detalhes completos de um projeto pelo ID.
      * @param id Identificador do projeto.
+     * @return Dados da struct Projeto correspondente.
      */
     function obterProjeto(uint256 id) external view returns (Projeto memory) {
         if (projetos[id].id == 0) revert ProjetoInexistente();
@@ -154,7 +155,7 @@ contract SmartFreela {
 
     /**
      * @notice Permite a um freelancer aceitar um projeto que esteja aberto.
-     * @param id Identificador do projeto.
+     * @param id Identificador do projeto a ser aceito.
      */
     function aceitarProjeto(uint256 id) external noStatus(id, StatusProjeto.Aberto) {
         if (msg.sender == projetos[id].cliente) revert AcessoNegado();
@@ -186,7 +187,7 @@ contract SmartFreela {
     /**
      * @notice Cliente aprova a entrega realizada e libera o pagamento ao freelancer.
      * @dev Implementa o padrão Checks-Effects-Interactions contra reentrância.
-     * @param id Identificador do projeto.
+     * @param id Identificador do projeto a ser aprovado.
      */
     function aprovarEFinalizar(
         uint256 id
@@ -208,6 +209,8 @@ contract SmartFreela {
     /**
      * @dev Processa transferência de ETH com validação de sucesso.
      * [Recurso: Funcoes] - visibilidade internal
+     * @param destinatario Endereço da carteira que receberá os fundos.
+     * @param quantia Valor em wei a ser transferido.
      */
     function _processarPagamento(address payable destinatario, uint256 quantia) internal {
         (bool sucesso, ) = destinatario.call{value: quantia}("");
@@ -217,6 +220,8 @@ contract SmartFreela {
     /**
      * @dev Calcula a taxa da plataforma em wei.
      * [Recurso: Funcoes] - visibilidade private pure
+     * @param valor Valor total sobre o qual a taxa percentual incidirá.
+     * @return Valor da taxa calculada em wei.
      */
     function _calcularTaxa(uint256 valor) private pure returns (uint256) {
         return (valor * TAXA_PLATAFORMA_PERCENTUAL) / 100;
@@ -225,6 +230,8 @@ contract SmartFreela {
     /**
      * @notice Calcula o valor líquido que o freelancer receberá após dedução da taxa.
      * [Recurso: Funcoes] - visibilidade public pure
+     * @param valorBruto Valor bruto original depositado em caução.
+     * @return Valor líquido a ser transferido ao freelancer.
      */
     function calcularValorLiquido(uint256 valorBruto) public pure returns (uint256) {
         uint256 taxa = _calcularTaxa(valorBruto);
