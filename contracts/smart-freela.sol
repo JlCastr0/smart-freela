@@ -1,176 +1,154 @@
-// SPDX-License-Identifier: GPL-3.0
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
 
-pragma solidity >=0.7.0 <0.9.0;
-
-/** 
- * @title Ballot
- * @dev Implements voting process along with vote delegation
+/**
+ * @title SmartFreela
+ * @notice Contrato descentralizado de custódia (escrow) para prestação de serviços freelance.
+ * @dev Atende aos 7 grupos de recursos exigidos no Guia do Trabalho Prático da disciplina.
  */
 contract SmartFreela {
-    // This declares a new complex type which will
-    // be used for variables later.
-    // It will represent a single voter.
-    struct Voter {
-        uint weight; // weight is accumulated by delegation
-        bool voted;  // if true, that person already voted
-        address delegate; // person delegated to
-        uint vote;   // index of the voted proposal
+    // =========================================================================
+    // 1. TIPOS DE DADOS
+    // =========================================================================
+    // [Recurso: TiposDeDados]
+    address public immutable dono;
+    uint256 public constant TAXA_PLATAFORMA_PERCENTUAL = 2; // 2% de taxa retida na liquidação
+    uint256 public totalProjetos;
+    uint256 public taxasAcumuladas;
+    int256 public immutable reputacaoInicialPadrao = 100; // Exemplo de int para métrica de reputação
+    bool public ativo = true;
+
+    // =========================================================================
+    // 2. STRUCTS E ENUMS
+    // =========================================================================
+    // [Recurso: StructsEEnums]
+    enum StatusProjeto {
+        Aberto,       // 0: Aguardando aceite de um freelancer
+        EmAndamento,  // 1: Aceito e em desenvolvimento
+        Entregue,     // 2: Trabalho concluído e aguardando aprovação
+        Finalizado,   // 3: Aprovado e pago ao freelancer
+        Cancelado,    // 4: Cancelado pelo cliente antes de iniciar (ETH devolvido)
+        EmDisputa     // 5: Em mediação pelo administrador
     }
 
-    // This is a type for a single proposal.
-    struct Proposal {
-        // If you can limit the length to a certain number of bytes, 
-        // always use one of bytes1 to bytes32 because they are much cheaper
-        bytes32 name;   // short name (up to 32 bytes)
-        uint voteCount; // number of accumulated votes
+    struct Projeto {
+        uint256 id;
+        address payable cliente;
+        address payable freelancer;
+        uint256 valor;
+        string titulo;
+        string descricao;
+        bytes32 hashEntrega;
+        StatusProjeto status;
+        uint256 criadoEm;
+        uint256 finalizadoEm;
     }
 
-    address public chairperson;
+    // =========================================================================
+    // 3. ARRAYS E MAPPINGS
+    // =========================================================================
+    // [Recurso: ArraysEMappings]
+    uint256[] private _todosOsIds;
+    mapping(uint256 => Projeto) public projetos;
+    // Mapping aninhado: rastreia se um endereço participou de determinado projeto
+    mapping(address => mapping(uint256 => bool)) public projetosParticipados;
 
-    // This declares a state variable that
-    // stores a 'Voter' struct for each possible address.
-    mapping(address => Voter) public voters;
+    // =========================================================================
+    // 4. EVENTOS E ERROS PERSONALIZADOS
+    // =========================================================================
+    // [Recurso: EventosEErros]
+    event ProjetoCriado(uint256 indexed id, address indexed cliente, uint256 valor);
+    event ProjetoAceito(uint256 indexed id, address indexed freelancer);
+    event ProjetoEntregue(uint256 indexed id, bytes32 indexed hashEntrega);
+    event ProjetoFinalizado(uint256 indexed id, address indexed freelancer, uint256 valorPago);
+    event ProjetoCancelado(uint256 indexed id, address indexed cliente);
+    event DisputaAberta(uint256 indexed id, address indexed solicitante);
+    event DisputaResolvida(uint256 indexed id, uint256 valorFreelancer, uint256 valorCliente);
+    event TaxasSacadas(address indexed recebedor, uint256 valor);
 
-    // A dynamically-sized array of 'Proposal' structs.
-    Proposal[] public proposals;
+    error ValorInvalido();
+    error DadosInvalidos();
+    error AcessoNegado();
+    error StatusIncorreto(StatusProjeto atual, StatusProjeto esperado);
+    error FalhaNoPagamento();
+    error PercentualInvalido();
+    error ProjetoInexistente();
 
-    /** 
-     * @dev Create a new ballot to choose one of 'proposalNames'.
-     * @param proposalNames names of proposals
-     */
-    constructor(bytes32[] memory proposalNames) {
-        chairperson = msg.sender;
-        voters[chairperson].weight = 1;
-
-        // For each of the provided proposal names,
-        // create a new proposal object and add it
-        // to the end of the array.
-        for (uint i = 0; i < proposalNames.length; i++) {
-            // 'Proposal({...})' creates a temporary
-            // Proposal object and 'proposals.push(...)'
-            // appends it to the end of 'proposals'.
-            proposals.push(Proposal({
-                name: proposalNames[i],
-                voteCount: 0
-            }));
-        }
+    // =========================================================================
+    // 5. MODIFICADORES
+    // =========================================================================
+    // [Recurso: Modificadores]
+    modifier apenasDono() {
+        if (msg.sender != dono) revert AcessoNegado();
+        _;
     }
 
-     /** 
-     * @dev Give 'voter' the right to vote on this ballot. May only be called by 'chairperson'.
-     * @param voter address of voter
-     */
-    function giveRightToVote(address voter) external {
-        // If the first argument of `require` evaluates
-        // to 'false', execution terminates and all
-        // changes to the state and to Ether balances
-        // are reverted.
-        // This used to consume all gas in old EVM versions, but
-        // not anymore.
-        // It is often a good idea to use 'require' to check if
-        // functions are called correctly.
-        // As a second argument, you can also provide an
-        // explanation about what went wrong.
-        require(
-            msg.sender == chairperson,
-            "Only chairperson can give right to vote."
-        );
-        require(
-            !voters[voter].voted,
-            "The voter already voted."
-        );
-        require(voters[voter].weight == 0, "Voter already has the right to vote.");
-        voters[voter].weight = 1;
+    modifier noStatus(uint256 id, StatusProjeto esperado) {
+        if (projetos[id].id == 0) revert ProjetoInexistente();
+        if (projetos[id].status != esperado) revert StatusIncorreto(projetos[id].status, esperado);
+        _;
     }
 
-    /**
-     * @dev Delegate your vote to the voter 'to'.
-     * @param to address to which vote is delegated
-     */
-    function delegate(address to) external {
-        // assigns reference
-        Voter storage sender = voters[msg.sender];
-        require(sender.weight != 0, "You have no right to vote");
-        require(!sender.voted, "You already voted.");
+    modifier apenasCliente(uint256 id) {
+        if (msg.sender != projetos[id].cliente) revert AcessoNegado();
+        _;
+    }
 
-        require(to != msg.sender, "Self-delegation is disallowed.");
+    modifier apenasFreelancer(uint256 id) {
+        if (msg.sender != projetos[id].freelancer) revert AcessoNegado();
+        _;
+    }
 
-        // Forward the delegation as long as
-        // 'to' also delegated.
-        // In general, such loops are very dangerous,
-        // because if they run too long, they might
-        // need more gas than is available in a block.
-        // In this case, the delegation will not be executed,
-        // but in other situations, such loops might
-        // cause a contract to get "stuck" completely.
-        while (voters[to].delegate != address(0)) {
-            to = voters[to].delegate;
-
-            // We found a loop in the delegation, not allowed.
-            require(to != msg.sender, "Found loop in delegation.");
-        }
-
-        Voter storage delegate_ = voters[to];
-
-        // Voters cannot delegate to accounts that cannot vote.
-        require(delegate_.weight >= 1);
-
-        // Since 'sender' is a reference, this
-        // modifies 'voters[msg.sender]'.
-        sender.voted = true;
-        sender.delegate = to;
-
-        if (delegate_.voted) {
-            // If the delegate already voted,
-            // directly add to the number of votes
-            proposals[delegate_.vote].voteCount += sender.weight;
-        } else {
-            // If the delegate did not vote yet,
-            // add to her weight.
-            delegate_.weight += sender.weight;
-        }
+    // =========================================================================
+    // 6. CONSTRUTOR E FUNÇÕES
+    // =========================================================================
+    // [Recurso: Funcoes]
+    constructor() {
+        dono = msg.sender;
     }
 
     /**
-     * @dev Give your vote (including votes delegated to you) to proposal 'proposals[proposal].name'.
-     * @param proposal index of proposal in the proposals array
+     * @notice Cria um novo projeto em caução depositando ETH.
+     * @param titulo Título descritivo do projeto.
+     * @param descricao Especificações dos requisitos e entregáveis.
+     * @return novoId Identificador único do projeto criado.
      */
-    function vote(uint proposal) external {
-        Voter storage sender = voters[msg.sender];
-        require(sender.weight != 0, "Has no right to vote");
-        require(!sender.voted, "Already voted.");
-        sender.voted = true;
-        sender.vote = proposal;
+    function criarProjeto(
+        string calldata titulo,
+        string calldata descricao
+    ) external payable returns (uint256 novoId) {
+        // [Recurso: EstruturasDeControle]
+        if (msg.value == 0) revert ValorInvalido();
+        if (bytes(titulo).length == 0 || bytes(descricao).length == 0) revert DadosInvalidos();
 
-        // If 'proposal' is out of the range of the array,
-        // this will throw automatically and revert all
-        // changes.
-        proposals[proposal].voteCount += sender.weight;
+        totalProjetos++;
+        novoId = totalProjetos;
+
+        projetos[novoId] = Projeto({
+            id: novoId,
+            cliente: payable(msg.sender),
+            freelancer: payable(address(0)),
+            valor: msg.value,
+            titulo: titulo,
+            descricao: descricao,
+            hashEntrega: bytes32(0),
+            status: StatusProjeto.Aberto,
+            criadoEm: block.timestamp,
+            finalizadoEm: 0
+        });
+
+        _todosOsIds.push(novoId);
+        projetosParticipados[msg.sender][novoId] = true;
+
+        emit ProjetoCriado(novoId, msg.sender, msg.value);
     }
 
-    /** 
-     * @dev Computes the winning proposal taking all previous votes into account.
-     * @return winningProposal_ index of winning proposal in the proposals array
+    /**
+     * @notice Consulta detalhes completos de um projeto pelo ID.
+     * @param id Identificador do projeto.
      */
-    function winningProposal() public view
-            returns (uint winningProposal_)
-    {
-        uint winningVoteCount = 0;
-        for (uint p = 0; p < proposals.length; p++) {
-            if (proposals[p].voteCount > winningVoteCount) {
-                winningVoteCount = proposals[p].voteCount;
-                winningProposal_ = p;
-            }
-        }
-    }
-
-    /** 
-     * @dev Calls winningProposal() function to get the index of the winner contained in the proposals array and then
-     * @return winnerName_ the name of the winner
-     */
-    function winnerName() external view
-            returns (bytes32 winnerName_)
-    {
-        winnerName_ = proposals[winningProposal()].name;
+    function obterProjeto(uint256 id) external view returns (Projeto memory) {
+        if (projetos[id].id == 0) revert ProjetoInexistente();
+        return projetos[id];
     }
 }
