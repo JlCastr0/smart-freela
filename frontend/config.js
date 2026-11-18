@@ -1,5 +1,6 @@
 // Endereço do contrato SmartFreela na rede Ethereum Sepolia.
-const CONTRACT_ADDRESS = "0xaAe2fb64bB43e03e1C1563c59588EbF62EeD2640";
+// Não esqueça de colar aqui o novo endereço após fazer o deploy do contrato refatorado no Remix.
+const CONTRACT_ADDRESS = "0xb8782b4B473Fb1a8AadE204AC0C6E549B1235D01";
 
 const CONTRACT_ABI = [
   {
@@ -9,49 +10,83 @@ const CONTRACT_ABI = [
   },
   {
     "inputs": [],
-    "name": "AcessoNegado",
+    "name": "AccessDenied",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "DadosInvalidos",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "FalhaNoPagamento",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "PercentualInvalido",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ProjetoInexistente",
+    "name": "ContractPaused",
     "type": "error"
   },
   {
     "inputs": [
       {
-        "internalType": "enum SmartFreela.StatusProjeto",
-        "name": "atual",
+        "internalType": "uint256",
+        "name": "dueDate",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "currentTimestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "DeadlineNotExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "enum SmartFreela.ProjectStatus",
+        "name": "current",
         "type": "uint8"
       },
       {
-        "internalType": "enum SmartFreela.StatusProjeto",
-        "name": "esperado",
+        "internalType": "enum SmartFreela.ProjectStatus",
+        "name": "expected",
         "type": "uint8"
       }
     ],
-    "name": "StatusIncorreto",
+    "name": "IncorrectStatus",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "ValorInvalido",
+    "name": "InvalidAmount",
     "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidData",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidPercentage",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PaymentFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProjectNotFound",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "isActive",
+        "type": "bool"
+      }
+    ],
+    "name": "ContractStatusToggled",
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -65,11 +100,11 @@ const CONTRACT_ABI = [
       {
         "indexed": true,
         "internalType": "address",
-        "name": "solicitante",
+        "name": "requester",
         "type": "address"
       }
     ],
-    "name": "DisputaAberta",
+    "name": "DisputeOpened",
     "type": "event"
   },
   {
@@ -84,17 +119,36 @@ const CONTRACT_ABI = [
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "valorFreelancer",
+        "name": "freelancerAmount",
         "type": "uint256"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "valorCliente",
+        "name": "clientAmount",
         "type": "uint256"
       }
     ],
-    "name": "DisputaResolvida",
+    "name": "DisputeResolved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "FeesWithdrawn",
     "type": "event"
   },
   {
@@ -113,7 +167,7 @@ const CONTRACT_ABI = [
         "type": "address"
       }
     ],
-    "name": "ProjetoAceito",
+    "name": "ProjectAccepted",
     "type": "event"
   },
   {
@@ -128,11 +182,11 @@ const CONTRACT_ABI = [
       {
         "indexed": true,
         "internalType": "address",
-        "name": "cliente",
+        "name": "client",
         "type": "address"
       }
     ],
-    "name": "ProjetoCancelado",
+    "name": "ProjectCanceled",
     "type": "event"
   },
   {
@@ -147,17 +201,48 @@ const CONTRACT_ABI = [
       {
         "indexed": true,
         "internalType": "address",
-        "name": "cliente",
+        "name": "freelancer",
         "type": "address"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "valor",
+        "name": "paidAmount",
         "type": "uint256"
       }
     ],
-    "name": "ProjetoCriado",
+    "name": "ProjectCompleted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "client",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "dueDate",
+        "type": "uint256"
+      }
+    ],
+    "name": "ProjectCreated",
     "type": "event"
   },
   {
@@ -172,60 +257,35 @@ const CONTRACT_ABI = [
       {
         "indexed": true,
         "internalType": "bytes32",
-        "name": "hashEntrega",
+        "name": "deliveryHash",
         "type": "bytes32"
-      }
-    ],
-    "name": "ProjetoEntregue",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "id",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "freelancer",
-        "type": "address"
       },
       {
         "indexed": false,
-        "internalType": "uint256",
-        "name": "valorPago",
-        "type": "uint256"
+        "internalType": "string",
+        "name": "deliveryUrl",
+        "type": "string"
       }
     ],
-    "name": "ProjetoFinalizado",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "recebedor",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "valor",
-        "type": "uint256"
-      }
-    ],
-    "name": "TaxasSacadas",
+    "name": "ProjectDelivered",
     "type": "event"
   },
   {
     "inputs": [],
-    "name": "TAXA_PLATAFORMA_PERCENTUAL",
+    "name": "DEFAULT_INITIAL_REPUTATION",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "",
+        "type": "int256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "PLATFORM_FEE_PERCENTAGE",
     "outputs": [
       {
         "internalType": "uint256",
@@ -244,45 +304,19 @@ const CONTRACT_ABI = [
         "type": "uint256"
       }
     ],
-    "name": "abrirDisputa",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "id",
-        "type": "uint256"
-      }
-    ],
-    "name": "aceitarProjeto",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "id",
-        "type": "uint256"
-      }
-    ],
-    "name": "aprovarEFinalizar",
+    "name": "acceptProject",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
     "inputs": [],
-    "name": "ativo",
+    "name": "accumulatedFees",
     "outputs": [
       {
-        "internalType": "bool",
+        "internalType": "uint256",
         "name": "",
-        "type": "bool"
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -292,11 +326,24 @@ const CONTRACT_ABI = [
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "valorBruto",
+        "name": "id",
         "type": "uint256"
       }
     ],
-    "name": "calcularValorLiquido",
+    "name": "approveAndComplete",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "grossAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "calculateNetValue",
     "outputs": [
       {
         "internalType": "uint256",
@@ -315,7 +362,7 @@ const CONTRACT_ABI = [
         "type": "uint256"
       }
     ],
-    "name": "cancelarProjeto",
+    "name": "cancelProject",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -324,37 +371,29 @@ const CONTRACT_ABI = [
     "inputs": [
       {
         "internalType": "string",
-        "name": "titulo",
+        "name": "title",
         "type": "string"
       },
       {
         "internalType": "string",
-        "name": "descricao",
+        "name": "description",
         "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dueDate",
+        "type": "uint256"
       }
     ],
-    "name": "criarProjeto",
+    "name": "createProject",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "novoId",
+        "name": "newId",
         "type": "uint256"
       }
     ],
     "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "dono",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -365,12 +404,17 @@ const CONTRACT_ABI = [
         "type": "uint256"
       },
       {
+        "internalType": "string",
+        "name": "deliveryUrl",
+        "type": "string"
+      },
+      {
         "internalType": "bytes32",
-        "name": "hashEntrega",
+        "name": "deliveryHash",
         "type": "bytes32"
       }
     ],
-    "name": "entregarProjeto",
+    "name": "deliverProject",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -378,22 +422,103 @@ const CONTRACT_ABI = [
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "name": "getProject",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "id",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address payable",
+            "name": "client",
+            "type": "address"
+          },
+          {
+            "internalType": "address payable",
+            "name": "freelancer",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "description",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "deliveryUrl",
+            "type": "string"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "deliveryHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "enum SmartFreela.ProjectStatus",
+            "name": "status",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint256",
+            "name": "createdAt",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "dueDate",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "completedAt",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct SmartFreela.Project",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
-        "name": "usuario",
+        "name": "user",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "inicio",
+        "name": "startIndex",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "limite",
+        "name": "limit",
         "type": "uint256"
       }
     ],
-    "name": "listarProjetosDoUsuario",
+    "name": "getUserProjects",
     "outputs": [
       {
         "internalType": "uint256[]",
@@ -407,69 +532,30 @@ const CONTRACT_ABI = [
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "id",
-        "type": "uint256"
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
       }
     ],
-    "name": "obterProjeto",
+    "name": "getUserReputation",
     "outputs": [
       {
-        "components": [
-          {
-            "internalType": "uint256",
-            "name": "id",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address payable",
-            "name": "cliente",
-            "type": "address"
-          },
-          {
-            "internalType": "address payable",
-            "name": "freelancer",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "valor",
-            "type": "uint256"
-          },
-          {
-            "internalType": "string",
-            "name": "titulo",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "descricao",
-            "type": "string"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "hashEntrega",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "enum SmartFreela.StatusProjeto",
-            "name": "status",
-            "type": "uint8"
-          },
-          {
-            "internalType": "uint256",
-            "name": "criadoEm",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "finalizadoEm",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct SmartFreela.Projeto",
+        "internalType": "int256",
         "name": "",
-        "type": "tuple"
+        "type": "int256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "isActive",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -479,61 +565,23 @@ const CONTRACT_ABI = [
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "id",
         "type": "uint256"
       }
     ],
-    "name": "projetos",
+    "name": "openDispute",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
     "outputs": [
       {
-        "internalType": "uint256",
-        "name": "id",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address payable",
-        "name": "cliente",
+        "internalType": "address",
+        "name": "",
         "type": "address"
-      },
-      {
-        "internalType": "address payable",
-        "name": "freelancer",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "valor",
-        "type": "uint256"
-      },
-      {
-        "internalType": "string",
-        "name": "titulo",
-        "type": "string"
-      },
-      {
-        "internalType": "string",
-        "name": "descricao",
-        "type": "string"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "hashEntrega",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "enum SmartFreela.StatusProjeto",
-        "name": "status",
-        "type": "uint8"
-      },
-      {
-        "internalType": "uint256",
-        "name": "criadoEm",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "finalizadoEm",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -552,7 +600,7 @@ const CONTRACT_ABI = [
         "type": "uint256"
       }
     ],
-    "name": "projetosParticipados",
+    "name": "participatedProjects",
     "outputs": [
       {
         "internalType": "bool",
@@ -564,8 +612,88 @@ const CONTRACT_ABI = [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "reputacaoInicialPadrao",
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "projects",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address payable",
+        "name": "client",
+        "type": "address"
+      },
+      {
+        "internalType": "address payable",
+        "name": "freelancer",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "title",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "description",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "deliveryUrl",
+        "type": "string"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "deliveryHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "enum SmartFreela.ProjectStatus",
+        "name": "status",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "createdAt",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dueDate",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "completedAt",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "reputationDelta",
     "outputs": [
       {
         "internalType": "int256",
@@ -585,25 +713,25 @@ const CONTRACT_ABI = [
       },
       {
         "internalType": "uint256",
-        "name": "percentualFreelancer",
+        "name": "freelancerPercentage",
         "type": "uint256"
       }
     ],
-    "name": "resolverDisputa",
+    "name": "resolveDispute",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
     "inputs": [],
-    "name": "sacarTaxas",
+    "name": "toggleContractActive",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
     "inputs": [],
-    "name": "taxasAcumuladas",
+    "name": "totalProjects",
     "outputs": [
       {
         "internalType": "uint256",
@@ -616,15 +744,10 @@ const CONTRACT_ABI = [
   },
   {
     "inputs": [],
-    "name": "totalProjetos",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
+    "name": "withdrawFees",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   }
-];
+]
+

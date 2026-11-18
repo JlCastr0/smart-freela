@@ -8,9 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:ital,wght@0,100..900;1,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Roboto+Mono:ital,wght@0,100..700;1,100..700&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
-  <!-- Web3.js 4.x via CDN oficial conforme o Guia do Trabalho Prático -->
   <script src="https://cdn.jsdelivr.net/npm/web3@4.16.0/dist/web3.min.js"></script>
-  <!-- Configuração contendo CONTRACT_ADDRESS e CONTRACT_ABI -->
   <script src="config.js"></script>
 </head>
 <body>
@@ -18,8 +16,7 @@
   <header>
     <div class="brand">
       <div class="eyebrow">DAPP ETHEREUM SEPOLIA · TRABALHO PRÁTICO</div>
-        <img class="logo" src="./assets/logo.png"/>
-      </div>
+        <h1>💼 Smart Freela</h1>
       <p class="sentence">Custódia financeira descentralizada para serviços freelance sem intermediários abusivos</p>
     </div>
     <div class="network-box">
@@ -28,6 +25,7 @@
         <strong id="networkText">MetaMask Desconectada</strong>
         <span id="walletAccount">Clique ao lado para conectar</span>
         <span id="walletBalance" class="balance-badge"></span>
+        <span id="walletReputation" class="balance-badge" hidden></span>
       </div>
       <button id="connectBtn" class="btn btn-connect">Conectar MetaMask</button>
     </div>
@@ -54,7 +52,7 @@
       <!-- COLUNA DA ESQUERDA: Formulários e Ações -->
       <div class="col-actions">
 
-        <!-- CARD: CRIAR NOVO PROJETO (ESCROW COM ETH) -->
+        <!-- CARD: CRIAR NOVO PROJETO -->
         <section class="card">
           <div class="card-header">
             <h2>➕ Publicar Novo Projeto</h2>
@@ -62,33 +60,39 @@
           </div>
           <p class="card-desc">Deposite o valor acordado em ETH no smart contract. O pagamento só é liberado ao freelancer após sua aprovação.</p>
           
-          <form id="formCriarProjeto" onsubmit="return false;">
+          <form id="formCreateProject" onsubmit="return false;">
             <div class="form-group">
-              <label for="tituloProjeto">Título do Projeto</label>
-              <input type="text" id="tituloProjeto" placeholder="Ex: Criação de Landing Page em HTML/CSS" required maxlength="80">
+              <label for="projectTitle">Título do Projeto</label>
+              <input type="text" id="projectTitle" placeholder="Ex: Criação de Landing Page em HTML/CSS" required maxlength="80">
             </div>
 
             <div class="form-group">
-              <label for="descricaoProjeto">Descrição & Requisitos</label>
-              <textarea id="descricaoProjeto" rows="3" placeholder="Detalhes dos requisitos, prazos e entregáveis esperados..." required></textarea>
+              <label for="projectDescription">Descrição & Requisitos</label>
+              <textarea id="projectDescription" rows="3" placeholder="Detalhes dos requisitos, prazos e entregáveis esperados..." required></textarea>
+            </div>
+
+            <!-- CAMPO: DUE DATE -->
+            <div class="form-group">
+              <label for="projectDueDate">Prazo de Entrega (Due Date)</label>
+              <input type="date" id="projectDueDate" required>
             </div>
 
             <div class="form-group">
-              <label for="valorProjeto">Depósito em Garantia (ETH)</label>
+              <label for="projectAmount">Depósito em Garantia (ETH)</label>
               <div class="input-eth-wrapper">
-                <input type="number" id="valorProjeto" placeholder="0.05" step="0.001" min="0.0001" required>
+                <input type="number" id="projectAmount" placeholder="0.05" step="0.001" min="0.0001" required>
                 <span class="eth-tag">ETH</span>
               </div>
               <small class="form-hint">Taxa de protocolo: 2% retida apenas na aprovação final.</small>
             </div>
 
-            <button type="button" id="btnCriarProjeto" class="btn btn-primary btn-block">
+            <button type="button" id="btnCreateProject" class="btn btn-primary btn-block">
               🔒 Criar Projeto & Bloquear ETH
             </button>
           </form>
         </section>
 
-        <!-- CARD: PAINEL ADMINISTRATIVO DO DONO (VISÍVEL SOMENTE PARA O OWNER) -->
+        <!-- CARD: PAINEL ADMINISTRATIVO DO DONO -->
         <section id="cardAdmin" class="card admin-card" hidden>
           <div class="card-header">
             <h2>🛡️ Painel do Administrador</h2>
@@ -99,10 +103,18 @@
           <div class="admin-stats">
             <div class="stat-item">
               <span class="stat-label">Taxas Acumuladas da Plataforma:</span>
-              <strong id="adminTaxas" class="stat-val">0.0000 ETH</strong>
+              <strong id="adminFees" class="stat-val">0.0000 ETH</strong>
             </div>
-            <button type="button" id="btnSacarTaxas" class="btn btn-secondary btn-block">
+            <button type="button" id="btnWithdrawFees" class="btn btn-secondary btn-block">
               💰 Sacar Taxas da Plataforma
+            </button>
+
+            <div class="stat-item">
+              <span class="stat-label">Status Operacional (Circuit Breaker):</span>
+              <strong id="adminContractStatus" class="stat-val">Ativo</strong>
+            </div>
+            <button type="button" id="btnToggleContract" class="btn btn-outline btn-block">
+              ⏸️ Alternar Status do Contrato
             </button>
           </div>
         </section>
@@ -113,8 +125,8 @@
             <h2>📡 Feed de Eventos On-Chain</h2>
             <span class="card-badge info-badge">Sepolia</span>
           </div>
-          <p class="card-desc">Eventos emitidos em tempo real pelo contrato inteligente com parâmetros indexados.</p>
-          <div id="feedEventos" class="events-feed">
+          <p class="card-desc">Eventos emitidos em tempo real pelo contrato inteligente.</p>
+          <div id="feedEvents" class="events-feed">
             <div class="feed-empty">Conecte sua carteira para carregar o histórico de eventos.</div>
           </div>
         </section>
@@ -128,23 +140,23 @@
               <h2>📋 Mural de Demandas Freelance</h2>
               <p class="card-desc">Explore os projetos abertos, acompanhe os seus ou submeta entregas.</p>
             </div>
-            <button id="btnAtualizar" class="btn btn-sm btn-outline">🔄 Atualizar</button>
+            <button id="btnRefresh" class="btn btn-sm btn-outline">🔄 Atualizar</button>
           </div>
 
           <!-- FILTROS -->
           <div class="filter-tabs">
-            <button class="tab active" data-filter="todos">Todos (<span id="totalTodos">0</span>)</button>
-            <button class="tab" data-filter="abertos">Abertos (<span id="totalAbertos">0</span>)</button>
-            <button class="tab" data-filter="meus">Meus Projetos (<span id="totalMeus">0</span>)</button>
+            <button class="tab active" data-filter="all">Todos (<span id="totalAll">0</span>)</button>
+            <button class="tab" data-filter="open">Abertos (<span id="totalOpen">0</span>)</button>
+            <button class="tab" data-filter="mine">Meus Projetos (<span id="totalMine">0</span>)</button>
           </div>
 
           <!-- LISTA DINÂMICA DE PROJETOS -->
-          <div id="listaProjetos" class="projects-list">
+          <div id="listProjects" class="projects-list">
             <div class="loading-state">Carregando projetos da blockchain...</div>
           </div>
 
           <!-- ESTADO VAZIO -->
-          <div id="semProjetos" class="empty-state" hidden>
+          <div id="emptyProjects" class="empty-state" hidden>
             <p>Nenhum projeto encontrado nesta categoria.</p>
           </div>
         </section>
@@ -154,48 +166,65 @@
   </div>
 
   <!-- MODAL: SUBMETER ENTREGA DE PROJETO -->
-  <div id="modalEntrega" class="modal-backdrop" hidden>
+  <div id="modalDelivery" class="modal-backdrop" hidden>
     <div class="modal">
       <div class="modal-header">
         <h3>🚀 Submeter Comprovante de Entrega</h3>
-        <button class="btn-close" onclick="fecharModalEntrega()">&times;</button>
+        <button class="btn-close" onclick="closeModalDelivery()">×</button>
       </div>
       <div class="modal-body">
-        <p>Gere uma impressão digital (hash criptográfico SHA-256) do seu trabalho ou informe o hash de commit/IPFS.</p>
+        <p>Informe o link público do seu entregável (repositório GitHub, deploy na Vercel ou IPFS). O link ficará visível para auditoria do cliente juntamente com seu hash criptográfico Keccak-256 (<code>bytes32</code>) on-chain.</p>
         <div class="form-group">
-          <label for="textoEntrega">Link do Repositório ou Texto de Entrega</label>
-          <input type="text" id="textoEntrega" placeholder="https://github.com/usuario/projeto/commit/abc123" oninput="gerarHashLocal()">
+          <label for="deliveryText">URL de Entrega (Repositório / Deploy)</label>
+          <input type="url" id="deliveryText" placeholder="https://github.com/usuario/projeto" oninput="generateLocalHash()">
         </div>
         <div class="form-group">
-          <label>Hash Gerado (bytes32 que será salvo on-chain):</label>
-          <code id="previewHashEntrega" class="hash-code">0x0000000000000000000000000000000000000000000000000000000000000000</code>
+          <label>Hash de Integridade Gerado (bytes32 que será validado on-chain):</label>
+          <code id="previewDeliveryHash" class="hash-code">0x0000000000000000000000000000000000000000000000000000000000000000</code>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="fecharModalEntrega()">Cancelar</button>
-        <button type="button" id="btnConfirmarEntrega" class="btn btn-primary">Registrar Entrega On-Chain</button>
+        <button type="button" class="btn btn-secondary" onclick="closeModalDelivery()">Cancelar</button>
+        <button type="button" id="btnConfirmDelivery" class="btn btn-primary">Registrar Entrega On-Chain</button>
       </div>
     </div>
   </div>
 
   <!-- MODAL: RESOLVER DISPUTA (DONO) -->
-  <div id="modalDisputa" class="modal-backdrop" hidden>
+  <div id="modalDispute" class="modal-backdrop" hidden>
     <div class="modal">
       <div class="modal-header">
         <h3>⚖️ Mediação de Disputa</h3>
-        <button class="btn-close" onclick="fecharModalDisputa()">&times;</button>
+        <button class="btn-close" onclick="closeModalDispute()">×</button>
       </div>
       <div class="modal-body">
         <p>Defina a porcentagem do depósito em caução que será repassada ao freelancer. O restante retornará ao cliente.</p>
         <div class="form-group">
-          <label for="percentualFreelancer">Percentual para o Freelancer (0 a 100%):</label>
-          <input type="number" id="percentualFreelancer" min="0" max="100" value="50" oninput="atualizarPreviewDisputa()">
-          <span class="form-hint" id="previewDisputaSplit">Freelancer: 50% | Cliente: 50%</span>
+          <label for="freelancerPercentage">Percentual para o Freelancer (0 a 100%):</label>
+          <input type="number" id="freelancerPercentage" min="0" max="100" value="50" oninput="updateDisputePreview()">
+          <span class="form-hint" id="previewDisputeSplit">Freelancer: 50% | Cliente: 50%</span>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="fecharModalDisputa()">Cancelar</button>
-        <button type="button" id="btnConfirmarResolucao" class="btn btn-danger">Executar Resolução On-Chain</button>
+        <button type="button" class="btn btn-secondary" onclick="closeModalDispute()">Cancelar</button>
+        <button type="button" id="btnConfirmResolution" class="btn btn-danger">Executar Resolução On-Chain</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DINÂMICO DE CONFIRMAÇÃO E ALERTA -->
+  <div id="modalDialog" class="modal-backdrop" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="dialogTitle">Confirmação</h3>
+        <button type="button" class="btn-close" id="btnCloseDialog">×</button>
+      </div>
+      <div class="modal-body">
+        <p id="dialogMessage"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btnCancelDialog" class="btn btn-secondary">Cancelar</button>
+        <button type="button" id="btnConfirmDialog" class="btn btn-primary">Confirmar</button>
       </div>
     </div>
   </div>
