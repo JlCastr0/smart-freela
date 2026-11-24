@@ -1,243 +1,205 @@
 /**
- * SMART FREELA — APLICAÇÃO WEB3.JS (FRONTEND)
+ * SMART FREELA — WEB3.JS APPLICATION (FRONTEND)
  * Conexão com MetaMask, verificação de rede Sepolia, chamadas .call e .send,
  * escuta de eventos e tratamento de erros.
  */
 
-// Constantes da rede Sepolia
 const SEPOLIA_CHAIN_ID_DEC = 11155111n;
 const SEPOLIA_CHAIN_ID_HEX = "0xaa36a7";
 const SEPOLIA_EXPLORER_TX = "https://sepolia.etherscan.io/tx/";
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
-// Nomes legíveis e classes de estilo para os estados do enum StatusProjeto
-const STATUS_NOMES = [
-  "Aberto",        // 0
-  "Em Andamento",  // 1
-  "Entregue",      // 2
-  "Finalizado",    // 3
-  "Cancelado",     // 4
-  "Em Disputa"     // 5
+// Nomes legíveis e classes de estilo para os estados do enum ProjectStatus
+const STATUS_NAMES = [
+  "Aberto",        // 0: Open
+  "Em Andamento",  // 1: InProgress
+  "Entregue",      // 2: Delivered
+  "Finalizado",    // 3: Completed
+  "Cancelado",     // 4: Canceled
+  "Em Disputa"     // 5: InDispute
 ];
 
-// Estado da aplicação
+// Application State
 let web3 = null;
 let contract = null;
-let contaConectada = null;
-let donoContrato = null;
-let redeSepoliaOk = false;
-let projetosCarregados = [];
-let filtroAtual = "todos";
-let modalProjetoId = null;
+let connectedAccount = null;
+let contractOwner = null;
+let isContractActive = true;
+let isSepoliaOk = false;
+let loadedProjects = [];
+let currentFilter = "all";
+let modalProjectId = null;
 
-// Atalho para buscar elementos do DOM
 const $ = (id) => document.getElementById(id);
 
-// Inicialização ao carregar a página
 window.addEventListener("DOMContentLoaded", async () => {
-  configurarBotoes();
-  configurarFiltros();
-  verificarConfiguracaoContrato();
+  setupButtons();
+  setupFilters();
+  checkContractConfig();
 
   if (window.ethereum) {
     web3 = new Web3(window.ethereum);
-    // Tenta reconexão silenciosa se já autorizado
-    const contas = await window.ethereum.request({ method: "eth_accounts" });
-    if (contas && contas.length > 0) {
-      await inicializarComConta(contas[0]);
+    const accounts = await window.ethereum.request({ method: "eth_accounts" });
+    if (accounts && accounts.length > 0) {
+      await initAccount(accounts[0]);
     }
-    // Ouvintes reativos de conta e rede
-    window.ethereum.on("accountsChanged", lidarComMudancaConta);
+    window.ethereum.on("accountsChanged", handleAccountChange);
     window.ethereum.on("chainChanged", () => window.location.reload());
   } else {
-    exibirStatus("MetaMask não encontrada. Por favor, instale a extensão MetaMask.", "bad");
+    showStatus("MetaMask não encontrada. Por favor, instale a extensão MetaMask.", "bad");
   }
 });
 
-/**
- * Valida se o endereço do contrato foi configurado
- */
-function verificarConfiguracaoContrato() {
-  if (
-    typeof CONTRACT_ADDRESS === "undefined" ||
-    !CONTRACT_ADDRESS ||
-    CONTRACT_ADDRESS.includes("COLOQUE_O_ENDERECO")
-  ) {
+function checkContractConfig() {
+  if (typeof CONTRACT_ADDRESS === "undefined" || !CONTRACT_ADDRESS || CONTRACT_ADDRESS.includes("COLOQUE_O_ENDERECO")) {
     $("contractWarning").hidden = false;
   } else {
     $("contractWarning").hidden = true;
   }
 }
 
-/**
- * Configura listeners dos botões da interface
- */
-function configurarBotoes() {
-  $("connectBtn").onclick = conectarCarteira;
-  $("btnCriarProjeto").onclick = criarNovoProjeto;
-  $("btnSacarTaxas").onclick = sacarTaxasPlataforma;
-  $("btnAtualizar").onclick = carregarDados;
-  $("btnConfirmarEntrega").onclick = submeterEntrega;
-  $("btnConfirmarResolucao").onclick = executarResolucaoDisputa;
+function setupButtons() {
+  $("connectBtn").onclick = connectWallet;
+  $("btnCreateProject").onclick = createNewProject;
+  $("btnWithdrawFees").onclick = withdrawPlatformFees;
+  $("btnToggleContract").onclick = toggleContractStatus;
+  $("btnRefresh").onclick = loadAllData;
+  $("btnConfirmDelivery").onclick = submitDelivery;
+  $("btnConfirmResolution").onclick = executeDisputeResolution;
 }
 
-/**
- * Configura abas de filtro dos projetos
- */
-function configurarFiltros() {
+function setupFilters() {
   const tabs = document.querySelectorAll(".filter-tabs .tab");
   tabs.forEach((tab) => {
     tab.onclick = () => {
       tabs.forEach((t) => t.classList.remove("active"));
       tab.classList.add("active");
-      filtroAtual = tab.dataset.filter;
-      renderizarProjetos();
+      currentFilter = tab.dataset.filter;
+      renderProjects();
     };
   });
 }
 
-/**
- * Conecta a carteira MetaMask e valida a rede Sepolia
- */
-async function conectarCarteira() {
+async function connectWallet() {
   if (!window.ethereum) {
-    alert("MetaMask não detectada. Instale a extensão no seu navegador.");
+    await showAlertModal("MetaMask não detectada. Instale a extensão no seu navegador.", "MetaMask Ausente");
     return;
   }
-
   try {
-    exibirStatus("Solicitando autorização na MetaMask...", "pending");
-    const contas = await window.ethereum.request({ method: "eth_requestAccounts" });
-    if (contas.length === 0) {
-      exibirStatus("Nenhuma conta selecionada.", "bad");
+    showStatus("Solicitando autorização na MetaMask...", "pending");
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    if (accounts.length === 0) {
+      showStatus("Nenhuma conta selecionada.", "bad");
       return;
     }
-    await inicializarComConta(contas[0]);
+    await initAccount(accounts[0]);
   } catch (err) {
-    tratarErro(err, "Falha ao conectar MetaMask");
+    handleError(err, "Falha ao conectar MetaMask");
   }
 }
 
-/**
- * Inicializa a sessão com a conta selecionada
- */
-async function inicializarComConta(conta) {
-  contaConectada = conta;
+async function initAccount(account) {
+  connectedAccount = account;
   web3 = new Web3(window.ethereum);
-
-  // Valida e solicita troca para Sepolia se necessário
-  await verificarETrocarParaSepolia();
-
-  if (!redeSepoliaOk) {
-    atualizarUINetwork(false);
+  await checkAndSwitchToSepolia();
+  if (!isSepoliaOk) {
+    updateNetworkUI(false);
     return;
   }
+  updateNetworkUI(true);
+  await loadBalance();
 
-  atualizarUINetwork(true);
-  await carregarSaldo();
-
-  // Instancia o contrato
   if ($("contractWarning").hidden) {
     contract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
     try {
-      donoContrato = await contract.methods.dono().call();
-      verificarPainelAdmin();
+      contractOwner = await contract.methods.owner().call();
+      checkAdminPanel();
     } catch (e) {
       console.warn("Não foi possível carregar dono do contrato:", e);
     }
-    await carregarDados();
+    await loadAllData();
   }
 }
 
-/**
- * Valida a rede conectada e solicita troca automática para a Sepolia
- */
-async function verificarETrocarParaSepolia() {
+async function checkAndSwitchToSepolia() {
   try {
     const chainIdHex = await window.ethereum.request({ method: "eth_chainId" });
     const chainIdDec = BigInt(chainIdHex);
-
     if (chainIdDec === SEPOLIA_CHAIN_ID_DEC) {
-      redeSepoliaOk = true;
+      isSepoliaOk = true;
       return true;
     }
-
-    // Solicita a troca de rede
-    exibirStatus("Solicitando mudança para a rede Ethereum Sepolia...", "pending");
+    showStatus("Solicitando mudança para a rede Ethereum Sepolia...", "pending");
     await window.ethereum.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }],
     });
-    redeSepoliaOk = true;
+    isSepoliaOk = true;
     return true;
   } catch (switchError) {
-    // Código 4902 indica que a rede Sepolia não está adicionada na MetaMask
     if (switchError.code === 4902) {
       try {
         await window.ethereum.request({
           method: "wallet_addEthereumChain",
-          params: [
-            {
-              chainId: SEPOLIA_CHAIN_ID_HEX,
-              chainName: "Sepolia Testnet",
-              nativeCurrency: { name: "SepoliaETH", symbol: "ETH", decimals: 18 },
-              rpcUrls: ["https://rpc.sepolia.org"],
-              blockExplorerUrls: ["https://sepolia.etherscan.io"],
-            },
-          ],
+          params: [{
+            chainId: SEPOLIA_CHAIN_ID_HEX,
+            chainName: "Sepolia Testnet",
+            nativeCurrency: { name: "SepoliaETH", symbol: "ETH", decimals: 18 },
+            rpcUrls: ["https://rpc.sepolia.org"],
+            blockExplorerUrls: ["https://sepolia.etherscan.io"],
+          }],
         });
-        redeSepoliaOk = true;
+        isSepoliaOk = true;
         return true;
       } catch (addError) {
-        tratarErro(addError, "Erro ao adicionar rede Sepolia");
+        handleError(addError, "Erro ao adicionar rede Sepolia");
       }
     } else {
-      tratarErro(switchError, "Rede incorreta. Conecte-se à Ethereum Sepolia");
+      handleError(switchError, "Rede incorreta. Conecte-se à Ethereum Sepolia");
     }
-    redeSepoliaOk = false;
+    isSepoliaOk = false;
     return false;
   }
 }
 
-/**
- * Atualiza o indicador visual da rede e conta conectada
- */
-function atualizarUINetwork(conectado) {
+function updateNetworkUI(isConnected) {
   const dot = $("networkDot");
   const netText = $("networkText");
   const walletAcc = $("walletAccount");
   const btn = $("connectBtn");
+  const repBadge = $("walletReputation");
 
-  if (conectado && redeSepoliaOk && contaConectada) {
+  if (isConnected && isSepoliaOk && connectedAccount) {
     dot.className = "dot ok";
     netText.textContent = "Sepolia Conectada";
-    walletAcc.textContent = `${contaConectada.slice(0, 6)}...${contaConectada.slice(-4)}`;
+    walletAcc.textContent = `${connectedAccount.slice(0, 6)}...${connectedAccount.slice(-4)}`;
     btn.textContent = "Conectado";
     btn.disabled = true;
-    exibirStatus("Conectado com sucesso à Ethereum Sepolia.", "good", 3000);
-  } else if (contaConectada && !redeSepoliaOk) {
+    showStatus("Conectado com sucesso à Ethereum Sepolia.", "good", 3000);
+  } else if (connectedAccount && !isSepoliaOk) {
     dot.className = "dot warn";
     netText.textContent = "Rede Incorreta";
     walletAcc.textContent = "Mude para Sepolia na MetaMask";
     btn.textContent = "Trocar Rede";
     btn.disabled = false;
-    btn.onclick = verificarETrocarParaSepolia;
+    btn.onclick = checkAndSwitchToSepolia;
+    if (repBadge) repBadge.hidden = true;
   } else {
     dot.className = "dot";
     netText.textContent = "MetaMask Desconectada";
     walletAcc.textContent = "Clique para conectar";
     btn.textContent = "Conectar MetaMask";
     btn.disabled = false;
-    btn.onclick = conectarCarteira;
+    btn.onclick = connectWallet;
+    if (repBadge) repBadge.hidden = true;
   }
 }
 
-/**
- * Carrega saldo em ETH da conta conectada
- */
-async function carregarSaldo() {
-  if (!web3 || !contaConectada) return;
+async function loadBalance() {
+  if (!web3 || !connectedAccount) return;
   try {
-    const balanceWei = await web3.eth.getBalance(contaConectada);
+    const balanceWei = await web3.eth.getBalance(connectedAccount);
     const balanceEth = parseFloat(web3.utils.fromWei(balanceWei, "ether")).toFixed(4);
     $("walletBalance").textContent = `${balanceEth} ETH`;
   } catch (e) {
@@ -245,494 +207,613 @@ async function carregarSaldo() {
   }
 }
 
-/**
- * Exibe ou oculta o painel administrativo caso a carteira seja o dono
- */
-function verificarPainelAdmin() {
-  if (
-    donoContrato &&
-    contaConectada &&
-    donoContrato.toLowerCase() === contaConectada.toLowerCase()
-  ) {
+async function loadUserReputation() {
+  const repBadge = $("walletReputation");
+  if (!contract || !connectedAccount || !repBadge) return;
+  try {
+    const rep = await contract.methods.getUserReputation(connectedAccount).call();
+    repBadge.textContent = `⭐ Reputação: ${rep} pts`;
+    repBadge.hidden = false;
+  } catch (e) {
+    console.warn("Não foi possível carregar reputação:", e);
+  }
+}
+
+function checkAdminPanel() {
+  if (contractOwner && connectedAccount && contractOwner.toLowerCase() === connectedAccount.toLowerCase()) {
     $("cardAdmin").hidden = false;
   } else {
     $("cardAdmin").hidden = true;
   }
 }
 
-/**
- * Lida com troca de conta na MetaMask
- */
-async function lidarComMudancaConta(contas) {
-  if (contas.length === 0) {
-    contaConectada = null;
-    atualizarUINetwork(false);
+async function handleAccountChange(accounts) {
+  if (accounts.length === 0) {
+    connectedAccount = null;
+    updateNetworkUI(false);
     $("cardAdmin").hidden = true;
-    exibirStatus("Carteira desconectada.", "neutral");
+    showStatus("Carteira desconectada.", "neutral");
   } else {
-    await inicializarComConta(contas[0]);
+    await initAccount(accounts[0]);
   }
 }
 
-/**
- * Carrega todos os dados: projetos, taxas e feed de eventos
- */
-async function carregarDados() {
+async function loadAllData() {
   if (!contract) return;
-  await Promise.all([carregarProjetos(), carregarTaxasAdmin(), carregarEventos()]);
+  await Promise.all([
+    loadProjects(),
+    loadAdminData(),
+    loadUserReputation(),
+    loadEvents()
+  ]);
 }
 
-/**
- * Carrega taxas acumuladas no painel do administrador
- */
-async function carregarTaxasAdmin() {
-  if (!contract || $("cardAdmin").hidden) return;
+async function loadAdminData() {
+  if (!contract) return;
   try {
-    const taxasWei = await contract.methods.taxasAcumuladas().call();
-    const taxasEth = parseFloat(web3.utils.fromWei(taxasWei, "ether")).toFixed(4);
-    $("adminTaxas").textContent = `${taxasEth} ETH`;
+    isContractActive = await contract.methods.isActive().call();
+    const createBtn = $("btnCreateProject");
+    if (createBtn) {
+      createBtn.disabled = !isContractActive;
+      createBtn.textContent = isContractActive
+        ? "🔒 Criar Projeto & Bloquear ETH"
+        : "⏸️ Criação Pausada pelo Admin";
+    }
+
+    if (!$("cardAdmin").hidden) {
+      const feesWei = await contract.methods.accumulatedFees().call();
+      const feesEth = parseFloat(web3.utils.fromWei(feesWei, "ether")).toFixed(4);
+      $("adminFees").textContent = `${feesEth} ETH`;
+
+      const statusEl = $("adminContractStatus");
+      const toggleBtn = $("btnToggleContract");
+      if (statusEl && toggleBtn) {
+        statusEl.textContent = isContractActive ? "Ativo (Operacional)" : "Pausado (Circuit Breaker)";
+        toggleBtn.textContent = isContractActive
+          ? "⏸️ Pausar Novas Criações"
+          : "▶️ Reativar Contrato";
+      }
+    }
   } catch (e) {
-    console.error("Erro ao carregar taxas da plataforma:", e);
+    console.error("Erro ao carregar dados administrativos:", e);
   }
 }
 
-/**
- * Consulta todos os projetos registrados no contrato
- */
-async function carregarProjetos() {
+async function loadProjects() {
   if (!contract) return;
-
-  const container = $("listaProjetos");
+  const container = $("listProjects");
   container.innerHTML = `<div class="loading-state">Consultando smart contract na Sepolia...</div>`;
-
   try {
-    const total = await contract.methods.totalProjetos().call();
+    const total = await contract.methods.totalProjects().call();
     const totalNum = Number(total);
-
-    projetosCarregados = [];
-
+    loadedProjects = [];
     for (let i = 1; i <= totalNum; i++) {
       try {
-        const p = await contract.methods.obterProjeto(i).call();
-        projetosCarregados.push(p);
+        const p = await contract.methods.getProject(i).call();
+        loadedProjects.push(p);
       } catch (err) {
         console.warn(`Erro ao carregar projeto ${i}:`, err);
       }
     }
-
-    // Inverte para exibir os mais recentes primeiro
-    projetosCarregados.reverse();
-
-    atualizarContadores();
-    renderizarProjetos();
+    loadedProjects.reverse();
+    updateCounters();
+    renderProjects();
   } catch (err) {
     container.innerHTML = `<div class="empty-state">Erro ao consultar projetos: ${err.message}</div>`;
   }
 }
 
-/**
- * Atualiza números nos botões de filtro
- */
-function atualizarContadores() {
-  $("totalTodos").textContent = projetosCarregados.length;
+function updateCounters() {
+  $("totalAll").textContent = loadedProjects.length;
+  const openCount = loadedProjects.filter((p) => Number(p.status) === 0).length;
+  $("totalOpen").textContent = openCount;
 
-  const abertos = projetosCarregados.filter((p) => Number(p.status) === 0).length;
-  $("totalAbertos").textContent = abertos;
-
-  if (contaConectada) {
-    const contaLower = contaConectada.toLowerCase();
-    const meus = projetosCarregados.filter(
-      (p) =>
-        p.cliente.toLowerCase() === contaLower ||
-        p.freelancer.toLowerCase() === contaLower
+  if (connectedAccount) {
+    const accLower = connectedAccount.toLowerCase();
+    const myCount = loadedProjects.filter(
+      (p) => p.client.toLowerCase() === accLower || p.freelancer.toLowerCase() === accLower
     ).length;
-    $("totalMeus").textContent = meus;
+    $("totalMine").textContent = myCount;
   } else {
-    $("totalMeus").textContent = "0";
+    $("totalMine").textContent = "0";
   }
 }
 
-/**
- * Renderiza a lista de projetos conforme o filtro selecionado
- */
-function renderizarProjetos() {
-  const container = $("listaProjetos");
-  const semProjetos = $("semProjetos");
+function renderProjects() {
+  const container = $("listProjects");
+  const emptyState = $("emptyProjects");
+  let filtered = [...loadedProjects];
 
-  let filtrados = [...projetosCarregados];
-
-  if (filtroAtual === "abertos") {
-    filtrados = filtrados.filter((p) => Number(p.status) === 0);
-  } else if (filtroAtual === "meus") {
-    if (!contaConectada) {
+  if (currentFilter === "open") {
+    filtered = filtered.filter((p) => Number(p.status) === 0);
+  } else if (currentFilter === "mine") {
+    if (!connectedAccount) {
       container.innerHTML = `<div class="empty-state">Conecte sua carteira para ver seus projetos.</div>`;
-      semProjetos.hidden = true;
+      emptyState.hidden = true;
       return;
     }
-    const contaLower = contaConectada.toLowerCase();
-    filtrados = filtrados.filter(
-      (p) =>
-        p.cliente.toLowerCase() === contaLower ||
-        p.freelancer.toLowerCase() === contaLower
+    const accLower = connectedAccount.toLowerCase();
+    filtered = filtered.filter(
+      (p) => p.client.toLowerCase() === accLower || p.freelancer.toLowerCase() === accLower
     );
   }
 
-  if (filtrados.length === 0) {
+  if (filtered.length === 0) {
     container.innerHTML = "";
-    semProjetos.hidden = false;
+    emptyState.hidden = false;
     return;
   }
-
-  semProjetos.hidden = true;
-  container.innerHTML = filtrados.map(criarCardProjetoHTML).join("");
+  emptyState.hidden = true;
+  container.innerHTML = filtered.map(createProjectCardHTML).join("");
 }
 
-/**
- * Constrói o HTML de cada card de projeto
- */
-function criarCardProjetoHTML(p) {
+function createProjectCardHTML(p) {
   const statusNum = Number(p.status);
-  const statusNome = STATUS_NOMES[statusNum] || "Desconhecido";
-  const valorEth = web3 ? web3.utils.fromWei(p.valor, "ether") : "0";
+  const statusName = STATUS_NAMES[statusNum] || "Desconhecido";
+  const ethValue = web3 ? web3.utils.fromWei(p.amount, "ether") : "0";
 
-  const contaLower = contaConectada ? contaConectada.toLowerCase() : "";
-  const clienteLower = p.cliente.toLowerCase();
+  const accLower = connectedAccount ? connectedAccount.toLowerCase() : "";
+  const clientLower = p.client.toLowerCase();
   const freelancerLower = p.freelancer.toLowerCase();
-  const donoLower = donoContrato ? donoContrato.toLowerCase() : "";
+  const ownerLower = contractOwner ? contractOwner.toLowerCase() : "";
 
-  const souCliente = contaLower && contaLower === clienteLower;
-  const souFreelancer = contaLower && contaLower === freelancerLower;
-  const souDono = contaLower && contaLower === donoLower;
+  const isClient = accLower && accLower === clientLower;
+  const isFreelancer = accLower && accLower === freelancerLower;
+  const isOwner = accLower && accLower === ownerLower;
 
-  let botoesAcao = "";
+  const nowSec = Math.floor(Date.now() / 1000);
+  const dueSec = Number(p.dueDate);
+  const isExpired = dueSec > 0 && nowSec > dueSec;
 
-  // Ações contextuais por estado
-  if (statusNum === 0) {
-    // Aberto
-    if (!souCliente) {
-      botoesAcao += `<button class="btn btn-sm btn-primary" onclick="aceitarDemanda(${p.id})">🤝 Aceitar Projeto</button>`;
+  let actionButtons = "";
+
+  if (statusNum === 0) { // Open
+    if (!isClient) {
+      actionButtons += `<button class="btn btn-sm btn-primary" onclick="acceptDemand(${p.id})">🤝 Aceitar Projeto</button>`;
     } else {
-      botoesAcao += `<button class="btn btn-sm btn-outline" onclick="cancelarDemanda(${p.id})">❌ Cancelar Demanda</button>`;
+      actionButtons += `<button class="btn btn-sm btn-outline" onclick="cancelDemand(${p.id}, false)">❌ Cancelar Demanda</button>`;
     }
-  } else if (statusNum === 1) {
-    // Em Andamento
-    if (souFreelancer) {
-      botoesAcao += `<button class="btn btn-sm btn-primary" onclick="abrirModalEntrega(${p.id})">🚀 Submeter Entrega</button>`;
+  } else if (statusNum === 1) { // InProgress
+    if (isFreelancer) {
+      actionButtons += `<button class="btn btn-sm btn-primary" onclick="openModalDelivery(${p.id})">🚀 Submeter Entrega</button>`;
     }
-    if (souCliente || souFreelancer) {
-      botoesAcao += `<button class="btn btn-sm btn-danger" onclick="abrirDisputaDemanda(${p.id})">⚖️ Abrir Disputa</button>`;
+    if (isClient && isExpired) {
+      actionButtons += `<button class="btn btn-sm btn-outline" onclick="cancelDemand(${p.id}, true)">⏰ Cancelar por Atraso (Reembolso 100%)</button>`;
     }
-  } else if (statusNum === 2) {
-    // Entregue
-    if (souCliente) {
-      botoesAcao += `<button class="btn btn-sm btn-primary" onclick="aprovarDemanda(${p.id})">✅ Aprovar & Liberar Pagamento</button>`;
-      botoesAcao += `<button class="btn btn-sm btn-danger" onclick="abrirDisputaDemanda(${p.id})">⚖️ Abrir Disputa</button>`;
-    } else if (souFreelancer) {
-      botoesAcao += `<button class="btn btn-sm btn-danger" onclick="abrirDisputaDemanda(${p.id})">⚖️ Abrir Disputa</button>`;
+    if (isClient || isFreelancer) {
+      actionButtons += `<button class="btn btn-sm btn-danger" onclick="openDemandDispute(${p.id})">⚖️ Abrir Disputa</button>`;
     }
-  } else if (statusNum === 5) {
-    // Em Disputa
-    if (souDono) {
-      botoesAcao += `<button class="btn btn-sm btn-danger" onclick="abrirModalDisputa(${p.id})">⚖️ Resolver Disputa (Admin)</button>`;
+  } else if (statusNum === 2) { // Delivered
+    if (isClient) {
+      actionButtons += `<button class="btn btn-sm btn-primary" onclick="approveDemand(${p.id})">✅ Aprovar & Liberar Pagamento</button>`;
+      actionButtons += `<button class="btn btn-sm btn-danger" onclick="openDemandDispute(${p.id})">⚖️ Abrir Disputa</button>`;
+    } else if (isFreelancer) {
+      actionButtons += `<button class="btn btn-sm btn-danger" onclick="openDemandDispute(${p.id})">⚖️ Abrir Disputa</button>`;
+    }
+  } else if (statusNum === 5) { // InDispute
+    if (isOwner) {
+      actionButtons += `<button class="btn btn-sm btn-danger" onclick="openModalDispute(${p.id})">⚖️ Resolver Disputa (Admin)</button>`;
     }
   }
 
-  const hashFormatado =
-    p.hashEntrega && p.hashEntrega !== "0x0000000000000000000000000000000000000000000000000000000000000000"
-      ? `<div class="detail-item"><span class="hash-label">Comprovante (bytes32):</span><strong class="hash-val">${p.hashEntrega}</strong></div>`
-      : "";
+  // Renderização segura do link de entrega (deliveryUrl) para auditoria do cliente
+  let deliveryUrlHTML = "";
+  if (p.deliveryUrl && p.deliveryUrl.trim().length > 0) {
+    const rawUrl = p.deliveryUrl.trim();
+    const safeHref = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+    deliveryUrlHTML = `
+      <div class="detail-item">
+        <span>Link da Entrega (Auditoria):</span>
+        <strong><a href="${escapeHTML(safeHref)}" target="_blank" rel="noopener noreferrer">${escapeHTML(rawUrl)} ↗</a></strong>
+      </div>
+    `;
+  }
+
+  const hashFormatted = p.deliveryHash && p.deliveryHash !== ZERO_BYTES32
+    ? `<div class="detail-item"><span class="hash-label">Comprovante (bytes32):</span><strong class="hash-val">${p.deliveryHash}</strong></div>`
+    : "";
+
+  const dateStr = dueSec > 0 ? new Date(dueSec * 1000).toLocaleDateString("pt-BR") : "N/A";
+  const deadlineBadge = (statusNum === 1 && isExpired) ? " ⚠️ (Expirado)" : "";
 
   return `
     <article class="project-card">
       <div class="project-top">
-        <div>
-          <h3 class="project-title">#${p.id} · ${escaparHTML(p.titulo)}</h3>
-        </div>
-        <span class="status-badge status-${statusNum}">${statusNome}</span>
+        <div><h3 class="project-title">#${p.id} · ${escapeHTML(p.title)}</h3></div>
+        <span class="status-badge status-${statusNum}">${statusName}</span>
       </div>
-
-      <p class="project-desc">${escaparHTML(p.descricao)}</p>
-
+      <p class="project-desc">${escapeHTML(p.description)}</p>
       <div class="project-details">
-        <div class="detail-item">
-          <span>Depósito em Caução:</span>
-          <strong>${valorEth} ETH</strong>
-        </div>
-        <div class="detail-item">
-          <span>Cliente:</span>
-          <strong>${p.cliente.slice(0, 6)}...${p.cliente.slice(-4)}</strong>
-        </div>
-        <div class="detail-item">
-          <span>Freelancer:</span>
-          <strong>${p.freelancer === "0x0000000000000000000000000000000000000000" ? "Aguardando..." : p.freelancer.slice(0, 6) + "..." + p.freelancer.slice(-4)}</strong>
-        </div>
-        ${hashFormatado}
+        <div class="detail-item"><span>Depósito em Caução:</span><strong>${ethValue} ETH</strong></div>
+        <div class="detail-item"><span>Prazo (Due Date):</span><strong>${dateStr}${deadlineBadge}</strong></div>
+        <div class="detail-item"><span>Cliente:</span><strong>${p.client.slice(0, 6)}...${p.client.slice(-4)}</strong></div>
+        <div class="detail-item"><span>Freelancer:</span><strong>${p.freelancer === ZERO_ADDRESS ? "Aguardando..." : p.freelancer.slice(0, 6) + "..." + p.freelancer.slice(-4)}</strong></div>
+        ${deliveryUrlHTML}
+        ${hashFormatted}
       </div>
-
-      ${botoesAcao ? `<div class="project-actions">${botoesAcao}</div>` : ""}
+      ${actionButtons ? `<div class="project-actions">${actionButtons}</div>` : ""}
     </article>
   `;
 }
 
 // =========================================================================
-// OPERAÇÕES DE ESCRITA NO CONTRATO (.send com ETH ou não)
+// OPERAÇÕES DE ESCRITA NO CONTRATO (.send) — COM MODAIS ASSÍNCRONOS
 // =========================================================================
 
-/**
- * Criação de novo projeto com envio de ETH (payable)
- */
-async function criarNovoProjeto() {
-  if (!validarConexao()) return;
-
-  const titulo = $("tituloProjeto").value.trim();
-  const descricao = $("descricaoProjeto").value.trim();
-  const valorEth = $("valorProjeto").value.trim();
-
-  if (!titulo || !descricao || !valorEth) {
-    alert("Preencha todos os campos do projeto e o valor em ETH.");
+async function createNewProject() {
+  if (!(await validateConnection())) return;
+  if (!isContractActive) {
+    await showAlertModal("O contrato está temporariamente pausado pelo administrador.");
     return;
   }
 
-  const valorNum = parseFloat(valorEth);
-  if (isNaN(valorNum) || valorNum <= 0) {
-    alert("Informe um valor de depósito válido em ETH maior que zero.");
+  const title = $("projectTitle").value.trim();
+  const description = $("projectDescription").value.trim();
+  const amountEth = $("projectAmount").value.trim();
+  const dateInput = $("projectDueDate").value;
+
+  if (!title || !description || !amountEth || !dateInput) {
+    await showAlertModal("Preencha todos os campos do projeto, prazo e o valor em ETH.");
+    return;
+  }
+  const amountNum = parseFloat(amountEth);
+  if (isNaN(amountNum) || amountNum <= 0) {
+    await showAlertModal("Informe um valor de depósito válido em ETH maior que zero.");
     return;
   }
 
-  const valorWei = web3.utils.toWei(valorEth, "ether");
+  // Correção de fuso horário: interpreta o input date explicitamente como UTC para alinhar com o bloco Ethereum
+  const dueDateTimestamp = Math.floor(new Date(`${dateInput}T23:59:59Z`).getTime() / 1000);
+  const currentTimestamp = Math.floor(Date.now() / 1000);
 
-  await executarTransacao(
-    () =>
-      contract.methods
-        .criarProjeto(titulo, descricao)
-        .send({ from: contaConectada, value: valorWei }),
+  if (isNaN(dueDateTimestamp) || dueDateTimestamp <= currentTimestamp) {
+    await showAlertModal("O prazo de entrega deve ser uma data válida no futuro.");
+    return;
+  }
+
+  const amountWei = web3.utils.toWei(amountEth, "ether");
+  await executeTransaction(
+    () => contract.methods.createProject(title, description, dueDateTimestamp).send({
+      from: connectedAccount,
+      value: amountWei
+    }),
     "Projeto publicado e ETH retido em caução com sucesso"
   );
-
-  $("formCriarProjeto").reset();
-  await carregarDados();
+  $("formCreateProject").reset();
+  await loadAllData();
 }
 
-/**
- * Freelancer aceita demanda
- */
-async function aceitarDemanda(id) {
-  if (!validarConexao()) return;
-  await executarTransacao(
-    () => contract.methods.aceitarProjeto(id).send({ from: contaConectada }),
+async function acceptDemand(id) {
+  if (!(await validateConnection())) return;
+  await executeTransaction(
+    () => contract.methods.acceptProject(id).send({ from: connectedAccount }),
     `Projeto #${id} aceito com sucesso`
   );
-  await carregarDados();
+  await loadAllData();
 }
 
-/**
- * Cancelamento de projeto aberto pelo cliente
- */
-async function cancelarDemanda(id) {
-  if (!validarConexao()) return;
-  if (!confirm("Deseja realmente cancelar este projeto e receber 100% do seu ETH de volta?")) {
-    return;
-  }
-  await executarTransacao(
-    () => contract.methods.cancelarProjeto(id).send({ from: contaConectada }),
+async function cancelDemand(id, isLateCancel = false) {
+  if (!(await validateConnection())) return;
+
+  const confirmed = await showConfirmModal({
+    title: isLateCancel ? "⏰ Cancelar Projeto por Atraso" : "❌ Cancelar Demanda",
+    message: isLateCancel
+      ? "O prazo de entrega expirou. Deseja cancelar o projeto por atraso, recuperar 100% do seu ETH e aplicar penalidade de reputação (-15 pts) ao freelancer?"
+      : "Deseja realmente cancelar este projeto aberto e receber 100% do seu ETH de volta?",
+    confirmText: "Sim, Cancelar e Reembolsar",
+    variant: "danger"
+  });
+
+  if (!confirmed) return;
+
+  await executeTransaction(
+    () => contract.methods.cancelProject(id).send({ from: connectedAccount }),
     `Projeto #${id} cancelado e ETH reembolsado com sucesso`
   );
-  await carregarDados();
+  await loadAllData();
 }
 
-/**
- * Submissão de entrega pelo freelancer (com hash bytes32)
- */
-async function submeterEntrega() {
-  if (!validarConexao() || !modalProjetoId) return;
-
-  const hash = $("previewHashEntrega").textContent;
-  if (!hash || hash === "0x0000000000000000000000000000000000000000000000000000000000000000") {
-    alert("Informe um texto ou link válido para gerar o hash da entrega.");
+async function submitDelivery() {
+  if (!(await validateConnection()) || !modalProjectId) {
+    await showAlertModal("Erro interno: Nenhum projeto selecionado para entrega ou não foi possível estabelecer conexão.");
     return;
   }
 
-  fecharModalEntrega();
+  const deliveryUrl = $("deliveryText").value.trim();
+  const hash = $("previewDeliveryHash").textContent;
 
-  await executarTransacao(
-    () => contract.methods.entregarProjeto(modalProjetoId, hash).send({ from: contaConectada }),
-    `Entrega do projeto #${modalProjetoId} registrada na blockchain`
-  );
-  await carregarDados();
-}
-
-/**
- * Cliente aprova a entrega e libera pagamento ao freelancer
- */
-async function aprovarDemanda(id) {
-  if (!validarConexao()) return;
-  if (!confirm("Aprovar a entrega e liberar o pagamento líquido ao freelancer?")) return;
-
-  await executarTransacao(
-    () => contract.methods.aprovarEFinalizar(id).send({ from: contaConectada }),
-    `Projeto #${id} aprovado e pagamento liberado ao freelancer (taxa retida)`
-  );
-  await carregarDados();
-}
-
-/**
- * Abertura de disputa
- */
-async function abrirDisputaDemanda(id) {
-  if (!validarConexao()) return;
-  if (!confirm("Abrir uma disputa oficial para este projeto? Os fundos ficarão travados para mediação.")) {
+  if (!deliveryUrl || !hash || hash === ZERO_BYTES32) {
+    await showAlertModal("Informe uma URL ou texto válido de entrega para gerar o comprovante.");
     return;
   }
 
-  await executarTransacao(
-    () => contract.methods.abrirDisputa(id).send({ from: contaConectada }),
+  const projectId = modalProjectId;
+  closeModalDelivery();
+
+  await executeTransaction(
+    () => contract.methods.deliverProject(projectId, deliveryUrl, hash).send({ from: connectedAccount }),
+    `Entrega do projeto #${projectId} (URL + Hash bytes32) registrada na blockchain`
+  );
+  await loadAllData();
+}
+
+async function approveDemand(id) {
+  if (!(await validateConnection())) return;
+
+  const confirmed = await showConfirmModal({
+    title: "✅ Aprovar Entrega e Liberar Pagamento",
+    message: "Você já auditou o link de entrega? Ao confirmar, 98% do valor em custódia serão transferidos ao freelancer (2% de taxa da plataforma) e ele receberá +10 pontos de reputação.",
+    confirmText: "Aprovar & Pagar Freelancer",
+    variant: "primary"
+  });
+
+  if (!confirmed) return;
+
+  await executeTransaction(
+    () => contract.methods.approveAndComplete(id).send({ from: connectedAccount }),
+    `Projeto #${id} aprovado! Pagamento liberado e reputação do freelancer bonificada (+10 pts)`
+  );
+  await loadAllData();
+}
+
+async function openDemandDispute(id) {
+  if (!(await validateConnection())) return;
+
+  const confirmed = await showConfirmModal({
+    title: "⚖️ Abrir Disputa Oficial",
+    message: "Deseja abrir uma disputa para este projeto? Os fundos ficarão travados no contrato até a mediação do administrador.",
+    confirmText: "Abrir Disputa",
+    variant: "danger"
+  });
+
+  if (!confirmed) return;
+
+  await executeTransaction(
+    () => contract.methods.openDispute(id).send({ from: connectedAccount }),
     `Disputa aberta para o projeto #${id}. Aguarde a mediação.`
   );
-  await carregarDados();
+  await loadAllData();
 }
 
-/**
- * Executa resolução de disputa (Administrador)
- */
-async function executarResolucaoDisputa() {
-  if (!validarConexao() || !modalProjetoId) return;
-
-  const percentual = parseInt($("percentualFreelancer").value, 10);
-  if (isNaN(percentual) || percentual < 0 || percentual > 100) {
-    alert("Informe um percentual válido entre 0 e 100.");
+async function executeDisputeResolution() {
+  if (!(await validateConnection()) || !modalProjectId) return;
+  const percentage = parseInt($("freelancerPercentage").value, 10);
+  if (isNaN(percentage) || percentage < 0 || percentage > 100) {
+    await showAlertModal("Informe um percentual válido entre 0 e 100.");
     return;
   }
 
-  fecharModalDisputa();
+  const projectId = modalProjectId;
+  closeModalDispute();
 
-  await executarTransacao(
-    () => contract.methods.resolverDisputa(modalProjetoId, percentual).send({ from: contaConectada }),
-    `Disputa do projeto #${modalProjetoId} resolvida com sucesso (${percentual}% freelancer)`
+  await executeTransaction(
+    () => contract.methods.resolveDispute(projectId, percentage).send({ from: connectedAccount }),
+    `Disputa do projeto #${projectId} resolvida com sucesso (${percentage}% freelancer)`
   );
-  await carregarDados();
+  await loadAllData();
 }
 
-/**
- * Dono saca taxas acumuladas
- */
-async function sacarTaxasPlataforma() {
-  if (!validarConexao()) return;
+async function withdrawPlatformFees() {
+  if (!(await validateConnection())) return;
 
-  await executarTransacao(
-    () => contract.methods.sacarTaxas().send({ from: contaConectada }),
+  const confirmed = await showConfirmModal({
+    title: "💰 Sacar Taxas Acumuladas",
+    message: "Deseja transferir todo o saldo de taxas acumuladas da plataforma para a carteira do administrador?",
+    confirmText: "Sacar Taxas",
+    variant: "primary"
+  });
+
+  if (!confirmed) return;
+
+  await executeTransaction(
+    () => contract.methods.withdrawFees().send({ from: connectedAccount }),
     "Taxas da plataforma sacadas com sucesso para a carteira do dono"
   );
-  await carregarDados();
+  await loadAllData();
+}
+
+async function toggleContractStatus() {
+  if (!(await validateConnection())) return;
+  const actionText = isContractActive ? "pausar" : "reativar";
+
+  const confirmed = await showConfirmModal({
+    title: "🛡️ Alterar Status Operacional (Circuit Breaker)",
+    message: `Deseja realmente ${actionText} a criação de novos projetos no contrato inteligente?`,
+    confirmText: isContractActive ? "Pausar Contrato" : "Reativar Contrato",
+    variant: isContractActive ? "danger" : "primary"
+  });
+
+  if (!confirmed) return;
+
+  await executeTransaction(
+    () => contract.methods.toggleContractActive().send({ from: connectedAccount }),
+    "Status operacional do contrato atualizado com sucesso"
+  );
+  await loadAllData();
 }
 
 // =========================================================================
-// GESTÃO DE MODAIS E HASHING
+// GESTÃO DE MODAIS E HASHING (KECCAK-256 COESO COM O SOLIDITY)
 // =========================================================================
 
-function abrirModalEntrega(id) {
-  modalProjetoId = id;
-  $("textoEntrega").value = "";
-  gerarHashLocal();
-  $("modalEntrega").hidden = false;
+function openModalDelivery(id) {
+  modalProjectId = id;
+  $("deliveryText").value = "";
+  generateLocalHash();
+  $("modalDelivery").hidden = false;
 }
 
-function fecharModalEntrega() {
-  modalProjetoId = null;
-  $("modalEntrega").hidden = true;
+function closeModalDelivery() {
+  modalProjectId = null;
+  $("modalDelivery").hidden = true;
 }
 
-function gerarHashLocal() {
-  const texto = $("textoEntrega").value.trim();
-  if (!texto) {
-    $("previewHashEntrega").textContent =
-      "0x0000000000000000000000000000000000000000000000000000000000000000";
+function generateLocalHash() {
+  const text = $("deliveryText").value.trim();
+  if (!text || !web3) {
+    $("previewDeliveryHash").textContent = ZERO_BYTES32;
     return;
   }
-  // Gera o hash Keccak-256 (bytes32 padrão no ecossistema Ethereum)
-  const hash = web3.utils.sha3(texto);
-  $("previewHashEntrega").textContent = hash;
+  const hash = web3.utils.keccak256(text);
+  $("previewDeliveryHash").textContent = hash;
 }
 
-function abrirModalDisputa(id) {
-  modalProjetoId = id;
-  $("percentualFreelancer").value = 50;
-  atualizarPreviewDisputa();
-  $("modalDisputa").hidden = false;
+function openModalDispute(id) {
+  modalProjectId = id;
+  $("freelancerPercentage").value = 50;
+  updateDisputePreview();
+  $("modalDispute").hidden = false;
 }
 
-function fecharModalDisputa() {
-  modalProjetoId = null;
-  $("modalDisputa").hidden = true;
+function closeModalDispute() {
+  modalProjectId = null;
+  $("modalDispute").hidden = true;
 }
 
-function atualizarPreviewDisputa() {
-  const freeVal = parseInt($("percentualFreelancer").value || 0, 10);
+function updateDisputePreview() {
+  const freeVal = parseInt($("freelancerPercentage").value || 0, 10);
   const clientVal = 100 - freeVal;
-  $("previewDisputaSplit").textContent = `Freelancer: ${freeVal}% | Cliente: ${clientVal}%`;
+  $("previewDisputeSplit").textContent = `Freelancer: ${freeVal}% | Cliente: ${clientVal}%`;
 }
 
 // =========================================================================
-// EVENTOS ON-CHAIN (FEED EM TEMPO REAL)
+// MODAL DINÂMICO DE CONFIRMAÇÃO E ALERTA (SUBSTITUI window.confirm / alert)
 // =========================================================================
 
-async function carregarEventos() {
+let dialogResolveFn = null;
+
+function closeDialogModal(result = false) {
+  const modal = $("modalDialog");
+  if (modal) modal.hidden = true;
+  if (dialogResolveFn) {
+    const resolve = dialogResolveFn;
+    dialogResolveFn = null;
+    resolve(result);
+  }
+}
+
+function showConfirmModal({
+  title = "Confirmar Ação",
+  message = "Deseja continuar?",
+  confirmText = "Confirmar",
+  cancelText = "Cancelar",
+  variant = "primary"
+}) {
+  return new Promise((resolve) => {
+    dialogResolveFn = resolve;
+
+    $("dialogTitle").textContent = title;
+    $("dialogMessage").textContent = message;
+
+    const btnConfirm = $("btnConfirmDialog");
+    const btnCancel = $("btnCancelDialog");
+    const btnClose = $("btnCloseDialog");
+
+    btnConfirm.textContent = confirmText;
+    btnConfirm.className = `btn ${variant === "danger" ? "btn-danger" : "btn-primary"}`;
+
+    btnCancel.textContent = cancelText;
+    btnCancel.hidden = false;
+
+    btnConfirm.onclick = () => closeDialogModal(true);
+    btnCancel.onclick = () => closeDialogModal(false);
+    btnClose.onclick = () => closeDialogModal(false);
+
+    $("modalDialog").hidden = false;
+  });
+}
+
+function showAlertModal(message, title = "⚠️ Atenção") {
+  return new Promise((resolve) => {
+    dialogResolveFn = resolve;
+
+    $("dialogTitle").textContent = title;
+    $("dialogMessage").textContent = message;
+
+    const btnConfirm = $("btnConfirmDialog");
+    const btnCancel = $("btnCancelDialog");
+    const btnClose = $("btnCloseDialog");
+
+    btnConfirm.textContent = "Entendi";
+    btnConfirm.className = "btn btn-primary";
+    btnCancel.hidden = true;
+
+    btnConfirm.onclick = () => closeDialogModal(true);
+    btnClose.onclick = () => closeDialogModal(true);
+
+    $("modalDialog").hidden = false;
+  });
+}
+
+// =========================================================================
+// FEED DE EVENTOS ON-CHAIN
+// =========================================================================
+
+async function loadEvents() {
   if (!contract) return;
-  const feed = $("feedEventos");
+  const feed = $("feedEvents");
 
   try {
+    const currentBlock = await web3.eth.getBlockNumber();
+    const range = 9000n;
+    const fromBlock = (currentBlock - range) > 0n ? (currentBlock - range) : 0n;
+
     const eventos = await contract.getPastEvents("allEvents", {
-      fromBlock: "earliest",
-      toBlock: "latest",
+      fromBlock: fromBlock,
+      toBlock: "latest"
     });
 
     if (!eventos || eventos.length === 0) {
-      feed.innerHTML = `<div class="feed-empty">Nenhum evento registrado no contrato ainda.</div>`;
+      feed.innerHTML = `<div class="feed-empty">Nenhum evento registrado nos blocos recentes.</div>`;
       return;
     }
 
-    // Exibe os 10 eventos mais recentes
     const recentes = [...eventos].reverse().slice(0, 10);
 
-    feed.innerHTML = recentes
-      .map((ev) => {
-        let classe = "info";
-        let texto = ev.event;
-        const vals = ev.returnValues;
+    feed.innerHTML = recentes.map((ev) => {
+      let cssClass = "info";
+      let text = ev.event;
+      const vals = ev.returnValues;
 
-        if (ev.event === "ProjetoCriado") {
-          classe = "success";
-          texto = `Projeto #${vals.id} criado pelo cliente ${vals.cliente.slice(0, 6)}... (${web3.utils.fromWei(vals.valor, "ether")} ETH)`;
-        } else if (ev.event === "ProjetoAceito") {
-          classe = "info";
-          texto = `Projeto #${vals.id} aceito pelo freelancer ${vals.freelancer.slice(0, 6)}...`;
-        } else if (ev.event === "ProjetoEntregue") {
-          classe = "warn";
-          texto = `Entrega submetida para o Projeto #${vals.id}`;
-        } else if (ev.event === "ProjetoFinalizado") {
-          classe = "success";
-          texto = `Projeto #${vals.id} finalizado e pago ao freelancer!`;
-        } else if (ev.event === "ProjetoCancelado") {
-          classe = "danger";
-          texto = `Projeto #${vals.id} cancelado pelo cliente`;
-        } else if (ev.event === "DisputaAberta") {
-          classe = "danger";
-          texto = `Disputa aberta para o Projeto #${vals.id}`;
-        } else if (ev.event === "TaxasSacadas") {
-          classe = "info";
-          texto = `Taxas da plataforma sacadas pelo administrador`;
-        }
+      if (ev.event === "ProjectCreated") {
+        cssClass = "success";
+        text = `Projeto #${vals.id} criado por ${vals.client.slice(0, 6)}... (${web3.utils.fromWei(vals.amount, "ether")} ETH)`;
+      } else if (ev.event === "ProjectAccepted") {
+        cssClass = "info";
+        text = `Projeto #${vals.id} aceito pelo freelancer ${vals.freelancer.slice(0, 6)}...`;
+      } else if (ev.event === "ProjectDelivered") {
+        cssClass = "warn";
+        text = `Entrega submetida para o Projeto #${vals.id}`;
+      } else if (ev.event === "ProjectCompleted") {
+        cssClass = "success";
+        text = `Projeto #${vals.id} finalizado e pago ao freelancer!`;
+      } else if (ev.event === "ProjectCanceled") {
+        cssClass = "danger";
+        text = `Projeto #${vals.id} cancelado e reembolsado ao cliente`;
+      } else if (ev.event === "DisputeOpened") {
+        cssClass = "danger";
+        text = `Disputa aberta para o Projeto #${vals.id}`;
+      } else if (ev.event === "DisputeResolved") {
+        cssClass = "info";
+        text = `Disputa do Projeto #${vals.id} resolvida pelo mediador`;
+      } else if (ev.event === "FeesWithdrawn") {
+        cssClass = "info";
+        text = `Taxas da plataforma sacadas pelo administrador`;
+      } else if (ev.event === "ContractStatusToggled") {
+        cssClass = "warn";
+        text = `Status do contrato alterado para: ${vals.isActive ? "Ativo" : "Pausado"}`;
+      }
 
-        return `
-          <div class="event-entry ${classe}">
-            <strong>${texto}</strong>
-            <div class="event-meta">
-              <span>Bloco #${ev.blockNumber}</span>
-              <a href="${SEPOLIA_EXPLORER_TX}${ev.transactionHash}" target="_blank" rel="noopener">Etherscan ↗</a>
-            </div>
+      return `
+        <div class="event-entry ${cssClass}">
+          <strong>${escapeHTML(text)}</strong>
+          <div class="event-meta">
+            <span>Bloco #${ev.blockNumber}</span>
+            <a href="${SEPOLIA_EXPLORER_TX}${ev.transactionHash}" target="_blank" rel="noopener">Etherscan ↗</a>
           </div>
-        `;
-      })
-      .join("");
+        </div>
+      `;
+    }).join("");
   } catch (e) {
     console.warn("Erro ao buscar eventos passados:", e);
     feed.innerHTML = `<div class="feed-empty">Eventos indisponíveis no nó RPC atual.</div>`;
@@ -740,123 +821,93 @@ async function carregarEventos() {
 }
 
 // =========================================================================
-// EXECUTOR DE TRANSAÇÃO COM FEEDBACK E TRATAMENTO DE ERROS
+// EXECUTOR DE TRANSAÇÕES & TRATAMENTO DE ERROS
 // =========================================================================
 
-/**
- * Executa uma transação de escrita gerenciando estados visuais
- */
-async function executarTransacao(txPromessaFn, msgSucesso) {
+async function executeTransaction(txPromiseFn, successMsg) {
   const link = $("txLink");
   link.hidden = true;
   link.href = "#";
-
   try {
-    exibirStatus("⏳ Aguardando aprovação na MetaMask...", "pending");
-
-    const promessa = txPromessaFn();
-
-    // Feedback imediato quando a transação é transmitida para a rede
-    promessa.on("transactionHash", (hash) => {
-      exibirStatus(`Transação enviada! Aguardando mineração na Sepolia...`, "pending");
+    showStatus("⏳ Aguardando aprovação na MetaMask...", "pending");
+    const promise = txPromiseFn();
+    promise.on("transactionHash", (hash) => {
+      showStatus(`Transação enviada! Aguardando mineração na Sepolia...`, "pending");
       link.href = `${SEPOLIA_EXPLORER_TX}${hash}`;
       link.hidden = false;
     });
-
-    const receipt = await promessa;
-
-    exibirStatus(`✅ ${msgSucesso}!`, "good", 8000);
+    const receipt = await promise;
+    showStatus(`✅ ${successMsg}!`, "good", 8000);
     link.href = `${SEPOLIA_EXPLORER_TX}${receipt.transactionHash}`;
     link.hidden = false;
-
-    await carregarSaldo();
+    await loadBalance();
     return receipt;
   } catch (err) {
-    tratarErro(err, "Falha na transação");
+    handleError(err, "Falha na transação");
   }
 }
 
-/**
- * Exibe mensagem no banner global de status
- */
-function exibirStatus(mensagem, tipo = "neutral", duracaoMs = 0) {
+function showStatus(message, type = "neutral", durationMs = 0) {
   const banner = $("statusBanner");
   const msg = $("statusMessage");
-  const icone = $("statusIcon");
-
-  banner.className = `status-banner ${tipo}`;
-  msg.textContent = mensagem;
-
-  if (tipo === "good") icone.textContent = "✅";
-  else if (tipo === "bad") icone.textContent = "❌";
-  else if (tipo === "pending") icone.textContent = "⏳";
-  else icone.textContent = "ℹ️";
-
+  const icon = $("statusIcon");
+  banner.className = `status-banner ${type}`;
+  msg.textContent = message;
+  if (type === "good") icon.textContent = "✅";
+  else if (type === "bad") icon.textContent = "❌";
+  else if (type === "pending") icon.textContent = "⏳";
+  else icon.textContent = "ℹ️";
   banner.hidden = false;
-
-  if (duracaoMs > 0) {
-    setTimeout(() => {
-      if (banner.className.includes(tipo)) {
-        banner.hidden = true;
-      }
-    }, duracaoMs);
+  if (durationMs > 0) {
+    setTimeout(() => { if (banner.className.includes(type)) banner.hidden = true; }, durationMs);
   }
 }
 
-/**
- * Traduz e trata erros de forma compreensível para o usuário
- */
-function tratarErro(err, contexto = "Erro") {
-  console.error(`${contexto}:`, err);
-
-  let mensagemAmigavel = err.message || "Erro desconhecido.";
-
-  // Erro 4001: Usuário rejeitou na MetaMask
+function handleError(err, context = "Erro") {
+  console.error(`${context}:`, err);
+  let friendlyMsg = err.message || "Erro desconhecido.";
   if (err.code === 4001 || err.message?.includes("rejected")) {
-    mensagemAmigavel = "Transação cancelada ou rejeitada pelo usuário na MetaMask.";
+    friendlyMsg = "Transação cancelada ou rejeitada pelo usuário na MetaMask.";
   } else if (err.code === -32002) {
-    mensagemAmigavel = "Já existe uma solicitação pendente na MetaMask. Abra a extensão para confirmar.";
+    friendlyMsg = "Já existe uma solicitação pendente na MetaMask. Abra a extensão para confirmar.";
   } else if (err.message?.includes("insufficient funds") || err.message?.includes("gas required exceeds allowance")) {
-    mensagemAmigavel = "Saldo insuficiente de SepoliaETH na carteira para cobrir o depósito e a taxa de gas.";
-  } else if (err.message?.includes("AcessoNegado")) {
-    mensagemAmigavel = "Acesso Negado: sua carteira não possui permissão para executar esta ação.";
-  } else if (err.message?.includes("StatusIncorreto")) {
-    mensagemAmigavel = "Status Incorreto: o projeto não está na fase necessária para esta operação.";
-  } else if (err.message?.includes("ValorInvalido")) {
-    mensagemAmigavel = "Valor Inválido: o montante de ETH deve ser maior que zero.";
-  } else if (err.message?.includes("DadosInvalidos")) {
-    mensagemAmigavel = "Dados Inválidos: verifique os campos informados.";
+    friendlyMsg = "Saldo insuficiente de SepoliaETH na carteira para cobrir o depósito e a taxa de gas.";
+  } else if (err.message?.includes("AccessDenied")) {
+    friendlyMsg = "Acesso Negado: sua carteira não possui permissão para executar esta ação.";
+  } else if (err.message?.includes("IncorrectStatus")) {
+    friendlyMsg = "Status Incorreto: o projeto não está na fase necessária para esta operação.";
+  } else if (err.message?.includes("InvalidAmount")) {
+    friendlyMsg = "Valor Inválido: o montante de ETH deve ser maior que zero.";
+  } else if (err.message?.includes("InvalidData")) {
+    friendlyMsg = "Dados Inválidos: verifique os campos informados ou a integridade do hash.";
+  } else if (err.message?.includes("DeadlineNotExpired")) {
+    friendlyMsg = "O prazo de entrega ainda não expirou para permitir cancelamento unilateral.";
+  } else if (err.message?.includes("ContractPaused")) {
+    friendlyMsg = "Contrato Pausado: novas criações de projetos estão temporariamente suspensas.";
   }
-
-  exibirStatus(`❌ ${contexto}: ${mensagemAmigavel}`, "bad", 8000);
+  showStatus(`❌ ${context}: ${friendlyMsg}`, "bad", 8000);
 }
 
-/**
- * Validação básica de pré-requisitos antes de executar transações
- */
-function validarConexao() {
-  if (!contaConectada) {
-    alert("Por favor, conecte sua MetaMask primeiro.");
+async function validateConnection() {
+  if (!connectedAccount) {
+    await showAlertModal("Por favor, conecte sua carteira MetaMask primeiro.");
     return false;
   }
-  if (!redeSepoliaOk) {
-    alert("Você deve estar conectado à rede Ethereum Sepolia.");
-    verificarETrocarParaSepolia();
+  if (!isSepoliaOk) {
+    await showAlertModal("Você deve estar conectado à rede Ethereum Sepolia.");
+    await checkAndSwitchToSepolia();
     return false;
   }
   if (!contract) {
-    alert("Contrato não configurado em frontend/config.js. Insira o endereço após o deploy.");
+    await showAlertModal("Contrato não configurado em frontend/config.js. Insira o endereço após o deploy.");
     return false;
   }
   return true;
 }
 
-/**
- * Sanitiza texto para prevenir XSS ao injetar no DOM
- */
-function escaparHTML(texto) {
-  if (!texto) return "";
+function escapeHTML(text) {
+  if (!text) return "";
   const div = document.createElement("div");
-  div.textContent = texto;
+  div.textContent = text;
   return div.innerHTML;
 }
