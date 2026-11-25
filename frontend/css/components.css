@@ -1,77 +1,6 @@
 /* ==========================================================================
-   SMART FREELA — ESTILOS CSS
-   Inspirado na identidade visual didática do urna-ledger-mvp-didatico
+   SMART FREELA — COMPONENTES (BOTÕES, BANNERS, CARDS, FORMS, MURAL E FEED)
    ========================================================================== */
-
-:root {
-  --navy: #071a33;
-  --navy2: #0d2a4a;
-  --blue: #0b5bd3;
-  --blue-hover: #0849aa;
-  --green: #08a045;
-  --green-bg: #e6f7ec;
-  --orange: #f59e0b;
-  --orange-bg: #fef3c7;
-  --red: #c62828;
-  --red-bg: #fde8e8;
-  --purple: #7c3aed;
-  --purple-bg: #ede9fe;
-  --bg: #eef3f8;
-  --card: #ffffff;
-  --ink: #152238;
-  --muted: #64748b;
-  --border: #dce5ef;
-  --radius: 14px;
-  --shadow: 0 8px 30px rgba(23, 50, 77, 0.08);
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: linear-gradient(135deg, #e9eef5, #f7fafc);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif, Consolas;
-  color: var(--ink);
-  line-height: 1.5;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* CABEÇALHO */
-header {
-  background: linear-gradient(120deg, var(--navy), var(--navy2));
-  color: white;
-  padding: 22px 5vw;
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: center;
-  flex-wrap: wrap;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-
-.brand .eyebrow {
-  font-size: 11px;
-  letter-spacing: 2px;
-  opacity: 0.75;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.brand h1 {
-  margin: 4px 0;
-  font-size: 28px;
-  font-weight: 800;
-}
-
-.brand p {
-  margin: 0;
-  opacity: 0.85;
-  font-size: 13px;
-}
 
 /* CAIXA DE CONEXÃO METAMASK */
 .network-box {
@@ -196,15 +125,6 @@ header {
   font-size: 12px;
 }
 
-/* CONTAINER & LAYOUT */
-.container {
-  max-width: 1200px;
-  margin: 24px auto;
-  padding: 0 20px;
-  flex: 1;
-  width: 100%;
-}
-
 /* BANNERS DE STATUS */
 .status-banner {
   padding: 14px 20px;
@@ -217,7 +137,7 @@ header {
   gap: 12px;
   font-size: 14px;
   font-weight: 500;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
 }
 
 .status-banner.neutral {
@@ -250,6 +170,10 @@ header {
   text-decoration: underline;
 }
 
+.status-message {
+  font-family: "Consolas", monospace;
+}
+
 .alert-warning {
   background: #fffbeb;
   border-left: 4px solid #f59e0b;
@@ -258,25 +182,6 @@ header {
   margin-bottom: 20px;
   color: #b45309;
   font-size: 13px;
-}
-
-/* GRID PRINCIPAL */
-.grid-main {
-  display: grid;
-  grid-template-columns: 380px 1fr;
-  gap: 24px;
-}
-
-@media (max-width: 900px) {
-  .grid-main {
-    grid-template-columns: 1fr;
-  }
-}
-
-.col-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
 }
 
 /* CARDS */
@@ -347,10 +252,9 @@ header {
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
-  font-family: inherit;
   outline: none;
   transition: border-color 0.2s;
-  font-family: Consolas;
+  font-family: "Consolas", monospace;
 }
 
 .form-group input:focus,
@@ -456,8 +360,15 @@ header {
 }
 
 /* MURAL DE PROJETOS */
+
 .projects-container-card {
+  height: 760px;
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   min-height: 500px;
+
 }
 
 .flex-header {
@@ -498,6 +409,11 @@ header {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  flex: 1;
+  min-height: 0;
 }
 
 /* CARD DE PROJETO INDIVIDUAL */
@@ -539,12 +455,12 @@ header {
   white-space: nowrap;
 }
 
-.status-0 { background: var(--orange-bg); color: #b45309; } /* Aberto */
-.status-1 { background: #dbeafe; color: #1e40af; } /* EmAndamento */
-.status-2 { background: var(--purple-bg); color: #6b21a8; } /* Entregue */
-.status-3 { background: var(--green-bg); color: #15803d; } /* Finalizado */
-.status-4 { background: #f1f5f9; color: #64748b; } /* Cancelado */
-.status-5 { background: var(--red-bg); color: #b91c1c; } /* EmDisputa */
+.status-0 { background: var(--orange-bg); color: #b45309; } /* Open */
+.status-1 { background: #dbeafe; color: #1e40af; } /* InProgress */
+.status-2 { background: var(--purple-bg); color: #6b21a8; } /* Delivered */
+.status-3 { background: var(--green-bg); color: #15803d; } /* Completed */
+.status-4 { background: #f1f5f9; color: #64748b; } /* Canceled */
+.status-5 { background: var(--red-bg); color: #b91c1c; } /* InDispute */
 
 .project-desc {
   font-size: 13px;
@@ -575,6 +491,18 @@ header {
   font-family: monospace;
 }
 
+.project-card,
+.project-top,
+.project-title,
+.project-desc,
+.project-details,
+.detail-item {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .hash-val {
   font-size: 11px;
   word-break: break-all;
@@ -587,119 +515,10 @@ header {
   margin-top: 4px;
 }
 
-/* MODAL */
-.modal-backdrop {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 20px;
-}
-
-.modal-backdrop[hidden] {
-  display: none !important;
-}
-
-.modal {
-  background: white;
-  border-radius: var(--radius);
-  width: 100%;
-  max-width: 520px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.25);
-  overflow: hidden;
-  animation: modalIn 0.2s ease-out;
-}
-
-@keyframes modalIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-.modal-header {
-  padding: 18px 22px;
-  background: #f8fafc;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.btn-close {
-  background: none;
-  border: 0;
-  font-size: 24px;
-  cursor: pointer;
-  color: var(--muted);
-  line-height: 1;
-}
-
-.modal-body {
-  padding: 22px;
-  font-size: 14px;
-}
-
-.modal-footer {
-  padding: 16px 22px;
-  background: #f8fafc;
-  border-top: 1px solid var(--border);
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.hash-code {
-  display: block;
-  background: #0f172a;
-  color: #38bdf8;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 12px;
-  word-break: break-all;
-  margin-top: 6px;
-}
-
-/* RODAPÉ */
-footer {
-  background: #ffffff;
-  border-top: 1px solid var(--border);
-  padding: 20px;
-  text-align: center;
-  font-size: 13px;
-  color: var(--muted);
-  margin-top: auto;
-}
-
-.footer-content strong {
-  display: block;
-  color: var(--ink);
-  margin-bottom: 4px;
-}
-
-.loading-state, .empty-state {
+.loading-state,
+.empty-state {
   text-align: center;
   padding: 40px 20px;
   color: var(--muted);
   font-size: 14px;
-}
-
-.logo {
-  max-width: 12rem;
-}
-
-.status-message {
-  font-family: "Consolas";
-}
-
-.sentence {
-  margin-top: 2rem;
 }

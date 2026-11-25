@@ -17,7 +17,7 @@ O **Smart Freela** resolve esse problema utilizando a rede **Ethereum Sepolia** 
 2. **Execução Segura para o Freelancer:** O freelancer aceita o serviço (`acceptProject`) sabendo previamente que os fundos estão bloqueados on-chain.
 3. **Entrega Transparente e Criptograficamente Auditável:** Ao concluir o serviço, o freelancer submete a URL do entregável (`deliveryUrl`) junto ao seu hash `bytes32` Keccak-256 (`deliverProject`). O contrato valida on-chain a integridade (`keccak256(bytes(deliveryUrl)) == deliveryHash`), garantindo que o cliente possa acessar o link para auditar o projeto com prova imutável de autoria.
 4. **Liquidação Automatizada e Reputação On-Chain:** Ao aprovar (`approveAndComplete`), o contrato transfere **98%** do valor ao freelancer, retém **2%** como taxa de manutenção da plataforma e bonifica o profissional com **+10 pontos** de reputação (`int256`).
-5. **Proteção de Prazo (`dueDate`), Cancelamento e Mediação de Disputas:** Projetos ainda abertos podem ser cancelados pelo cliente com reembolso de 100% (`cancelProject`). Caso o projeto esteja em andamento e o freelancer estoure o prazo limite (`block.timestamp > dueDate`), o cliente também pode cancelar unilateralmente por atraso (reembolso de 100% e penalidade de **-15 pontos** na reputação do freelancer). Projetos em andamento ou entregues permitem abertura de disputa (`openDispute`), mediada pelo administrador (`resolveDispute`) com divisão percentual configurável.
+5. **Proteção de Prazo (`dueDate`), Janela de Revisão (`REVIEW_WINDOW`) e Mediação de Disputas:** Projetos ainda abertos podem ser cancelados pelo cliente com reembolso de 100% (`cancelProject`). Caso o projeto esteja em andamento e o freelancer estoure o prazo limite (`block.timestamp > dueDate`), o cliente também pode cancelar unilateralmente por atraso (reembolso de 100% e penalidade de **-15 pontos** na reputação do freelancer). Após a entrega (`Delivered`), caso o cliente não aprove nem abra disputa dentro da janela de **7 dias** (`REVIEW_WINDOW`), o freelancer pode resgatar o pagamento líquido (`claimAfterReviewTimeout`). Projetos em andamento ou entregues permitem abertura de disputa (`openDispute`), mediada pelo administrador (`resolveDispute`) com divisão percentual configurável e taxa de 2% aplicada apenas sobre a parcela paga ao freelancer.
 
 ```mermaid
 stateDiagram-v2
@@ -27,9 +27,10 @@ stateDiagram-v2
     InProgress --> Canceled: cancelProject() [onlyClient, timestamp > dueDate, -15 rep]
     InProgress --> Delivered: deliverProject(url, hash) [onlyFreelancer, keccak256 check]
     Delivered --> Completed: approveAndComplete() [onlyClient, 98% freela / 2% fee, +10 rep]
+    Delivered --> Completed: claimAfterReviewTimeout() [onlyFreelancer, > 7d, 98% freela / 2% fee, +10 rep]
     InProgress --> InDispute: openDispute() [client or freelancer]
     Delivered --> InDispute: openDispute() [client or freelancer]
-    InDispute --> Completed: resolveDispute(%) [onlyOwner, +5 or -10 rep]
+    InDispute --> Completed: resolveDispute(%) [onlyOwner, 2% fee on freela share, +5 or -10 rep]
     Canceled --> [*]
     Completed --> [*]
 ```
@@ -60,24 +61,26 @@ stateDiagram-v2
 
 ## 4. Descrição das Funções do Contrato (`SmartFreela.sol`)
 
-Além dos *getters* automáticos de variáveis públicas (`owner`, `PLATFORM_FEE_PERCENTAGE`, `DEFAULT_INITIAL_REPUTATION`, `totalProjects`, `accumulatedFees`, `isActive`, `projects`, `reputationDelta`, `participatedProjects`), o contrato implementa **13 funções externas/públicas**, **1 construtor** e **2 funções auxiliares (`internal` e `private`)**:
+Além dos *getters* automáticos de variáveis públicas (`owner`, `PLATFORM_FEE_PERCENTAGE`, `MIN_DELIVERY_WINDOW`, `MAX_DELIVERY_WINDOW`, `REVIEW_WINDOW`, `DEFAULT_INITIAL_REPUTATION`, `totalProjects`, `accumulatedFees`, `isActive`, `projects`, `deliveredAt`, `reputationDelta`, `participatedProjects`), o contrato implementa **14 funções externas/públicas**, **1 construtor** e **3 funções auxiliares (`internal` e `private`)**:
 
 | Função / Assinatura | Visibilidade / Mutabilidade | Quem pode chamar | O que faz | Eventos emitidos | Erros possíveis |
 |---|---|---|---|---|---|
 | `constructor()` | `constructor` | Conta que realiza o deploy | Define `owner = msg.sender` (`immutable`). | — | — |
-| `createProject(string title, string description, uint256 dueDate)` | `external payable` | Qualquer conta (Cliente) | Verifica se o contrato está ativo (`isActive`), valida `msg.value > 0`, textos e `dueDate > block.timestamp`. Registra `Project` com status `Open` e retém o ETH em custódia. | `ProjectCreated(id, client, amount, dueDate)` | `ContractPaused`, `InvalidAmount`, `InvalidData` |
+| `createProject(string title, string description, uint256 dueDate)` | `external payable` | Qualquer conta (Cliente) | Verifica se o contrato está ativo (`isActive`), valida `msg.value > 0`, limites de tamanho (`title` ≤ 80 bytes, `description` ≤ 1500 bytes) e janela de prazo (`1 hora` a `365 dias`). Registra `Project` com status `Open` e retém o ETH em custódia. | `ProjectCreated(id, client, amount, dueDate)` | `ContractPaused`, `InvalidAmount`, `InvalidData` |
 | `getProject(uint256 id)` | `external view` | Qualquer conta / Frontend | Retorna a `struct Project` completa para o `id` informado. | — | `ProjectNotFound` |
 | `acceptProject(uint256 id)` | `external` | Qualquer conta exceto o cliente do projeto | Valida `inStatus(id, Open)`, vincula `msg.sender` como `freelancer`, marca `participatedProjects` e muda status para `InProgress`. | `ProjectAccepted(id, freelancer)` | `ProjectNotFound`, `IncorrectStatus`, `AccessDenied` |
-| `deliverProject(uint256 id, string deliveryUrl, bytes32 deliveryHash)` | `external` | Apenas o `freelancer` do projeto | Valida `inStatus(id, InProgress)` e `onlyFreelancer(id)`, exige `keccak256(bytes(deliveryUrl)) == deliveryHash`, grava URL e hash e muda status para `Delivered`. | `ProjectDelivered(id, deliveryHash, deliveryUrl)` | `ProjectNotFound`, `IncorrectStatus`, `AccessDenied`, `InvalidData` |
-| `approveAndComplete(uint256 id)` | `external` | Apenas o `client` do projeto | Valida `inStatus(id, Delivered)` e `onlyClient(id)`. Muda status para `Completed`, soma `+10` em `reputationDelta`, acumula taxa (2%) e transfere 98% ao freelancer (padrão *CEI*). | `ProjectCompleted(id, freelancer, netValue)` | `ProjectNotFound`, `IncorrectStatus`, `AccessDenied`, `PaymentFailed` |
-| `cancelProject(uint256 id)` | `external` | Apenas o `client` do projeto | Cancela e reembolsa 100% ao cliente se `Open`, ou se `InProgress` com prazo expirado (`block.timestamp > dueDate`, aplicando `-15` na reputação do freelancer). | `ProjectCanceled(id, client)` | `ProjectNotFound`, `AccessDenied`, `DeadlineNotExpired`, `IncorrectStatus`, `PaymentFailed` |
+| `deliverProject(uint256 id, string deliveryUrl, bytes32 deliveryHash)` | `external` | Apenas o `freelancer` do projeto | Valida `inStatus(id, InProgress)` e `onlyFreelancer(id)`, exige `deliveryUrl` ≤ 2048 bytes e `keccak256(bytes(deliveryUrl)) == deliveryHash`, registra `deliveredAt[id]` e muda status para `Delivered`. | `ProjectDelivered(id, deliveryHash, deliveryUrl)` | `ProjectNotFound`, `IncorrectStatus`, `AccessDenied`, `InvalidData` |
+| `approveAndComplete(uint256 id)` | `external` | Apenas o `client` do projeto | Valida `nonReentrant`, `inStatus(id, Delivered)` e `onlyClient(id)`. Liquida via `_settleToFreelancer` (status `Completed`, `+10` em `reputationDelta`, 2% de taxa e 98% ao freelancer). | `ProjectCompleted(id, freelancer, netValue)` | `ProjectNotFound`, `IncorrectStatus`, `AccessDenied`, `PaymentFailed` |
+| `claimAfterReviewTimeout(uint256 id)` | `external` | Apenas o `freelancer` do projeto | Valida `nonReentrant`, `inStatus(id, Delivered)`, `onlyFreelancer(id)` e `block.timestamp > deliveredAt[id] + REVIEW_WINDOW` (7 dias). Permite o resgate automático via `_settleToFreelancer` caso o cliente não revise no prazo. | `ProjectCompleted(id, freelancer, netValue)` | `ProjectNotFound`, `IncorrectStatus`, `AccessDenied`, `ReviewWindowNotExpired`, `PaymentFailed` |
+| `cancelProject(uint256 id)` | `external` | Apenas o `client` do projeto | Valida `nonReentrant` e reembolsa 100% ao cliente se `Open`, ou se `InProgress` com prazo expirado (`block.timestamp > dueDate`, aplicando `-15` na reputação do freelancer). | `ProjectCanceled(id, client)` | `ProjectNotFound`, `AccessDenied`, `DeadlineNotExpired`, `IncorrectStatus`, `PaymentFailed` |
 | `openDispute(uint256 id)` | `external` | `client` ou `freelancer` do projeto | Exige projeto existente em `InProgress` ou `Delivered` chamado por uma das partes; muda status para `InDispute`. | `DisputeOpened(id, requester)` | `ProjectNotFound`, `AccessDenied`, `IncorrectStatus` |
-| `resolveDispute(uint256 id, uint256 freelancerPercentage)` | `external` | Apenas o `owner` (`onlyOwner`) | Valida `inStatus(id, InDispute)` e `freelancerPercentage <= 100`. Ajusta reputação (`+5` ou `-10`), finaliza o projeto e divide os fundos entre freelancer e cliente. | `DisputeResolved(id, freelancerAmount, clientAmount)` | `AccessDenied`, `ProjectNotFound`, `IncorrectStatus`, `InvalidPercentage`, `PaymentFailed` |
-| `withdrawFees()` | `external` | Apenas o `owner` (`onlyOwner`) | Zera `accumulatedFees` (CEI) e transfere o saldo acumulado de taxas para `owner`. | `FeesWithdrawn(owner, amount)` | `AccessDenied`, `InvalidAmount`, `PaymentFailed` |
+| `resolveDispute(uint256 id, uint256 freelancerPercentage)` | `external` | Apenas o `owner` (`onlyOwner`) | Valida `nonReentrant`, `inStatus(id, InDispute)` e `freelancerPercentage <= 100`. Ajusta reputação (`+5` ou `-10`), retém taxa de 2% sobre a parcela do freelancer e repassa os valores líquidos às partes. | `DisputeResolved(id, netFreelancerAmount, clientAmount)` | `AccessDenied`, `ProjectNotFound`, `IncorrectStatus`, `InvalidPercentage`, `PaymentFailed` |
+| `withdrawFees()` | `external` | Apenas o `owner` (`onlyOwner`) | Valida `nonReentrant`, zera `accumulatedFees` (CEI) e transfere o saldo acumulado de taxas para `owner`. | `FeesWithdrawn(owner, amount)` | `AccessDenied`, `InvalidAmount`, `PaymentFailed` |
 | `toggleContractActive()` | `external` | Apenas o `owner` (`onlyOwner`) | Alterna o estado booleano `isActive` (*Circuit Breaker*) para pausar/reativar novas publicações. | `ContractStatusToggled(isActive)` | `AccessDenied` |
 | `getUserReputation(address user)` | `external view` | Qualquer conta / Frontend | Retorna a reputação calculada com sinal (`DEFAULT_INITIAL_REPUTATION + reputationDelta[user]`). | — | — |
 | `calculateNetValue(uint256 grossAmount)` | `public pure` | Qualquer conta / Contrato | Simula o valor líquido que o freelancer receberá após a dedução da taxa de 2%. | — | — |
 | `getUserProjects(address user, uint256 startIndex, uint256 limit)` | `external view` | Qualquer conta / Frontend | Retorna os IDs dos projetos em que `user` participou dentro da janela paginada (`limit` entre 1 e 50). | — | Reversão por `require` se `limit == 0` ou `limit > 50` |
+| `_settleToFreelancer(uint256 id)` | `private` | Apenas funções internas | Atualiza status para `Completed`, bonifica reputação (`+10`), acumula taxa de 2% e transfere 98% ao freelancer. | `ProjectCompleted(id, freelancer, netValue)` | `PaymentFailed` |
 | `_processPayment(address payable recipient, uint256 amount)` | `internal` | Apenas funções internas | Encapsula a transferência segura de ETH via `.call{value: amount}("")`. | — | `PaymentFailed` |
 | `_calculateFee(uint256 amount)` | `private pure` | Apenas funções internas | Calcula `(amount * PLATFORM_FEE_PERCENTAGE) / 100`. | — | — |
 
@@ -87,13 +90,13 @@ Além dos *getters* automáticos de variáveis públicas (`owner`, `PLATFORM_FEE
 
 | # | Grupo de Recursos | Como foi implementado e Justificativa no Tema |
 |---|---|---|
-| **1** | **TiposDeDados** | • `uint256`: valores em wei (`amount`, `accumulatedFees`), IDs e timestamps (`createdAt`, `dueDate`, `completedAt`).<br>• `int256`: score de reputação com suporte a variações positivas e negativas (`DEFAULT_INITIAL_REPUTATION = 100`, `reputationDelta`).<br>• `bool`: circuit breaker operacional (`isActive`) e participação em projetos.<br>• `address` e `address payable`: carteiras `owner`, `client` e `freelancer`.<br>• `string`: `title`, `description` e `deliveryUrl` (link para auditoria).<br>• `bytes32`: `deliveryHash` validado via `keccak256(bytes(deliveryUrl))`.<br>• `constant` e `immutable`: `PLATFORM_FEE_PERCENTAGE`, `DEFAULT_INITIAL_REPUTATION` e `owner`. |
-| **2** | **Funcoes** | • `constructor`: define `owner`.<br>• `external payable`: `createProject()` recebe o depósito do escrow.<br>• `external`: `acceptProject`, `deliverProject`, `approveAndComplete`, `cancelProject`, `openDispute`, `resolveDispute`, `withdrawFees`, `toggleContractActive`.<br>• `external view`: `getProject()`, `getUserReputation()` e `getUserProjects()`.<br>• `public pure`: `calculateNetValue()`.<br>• `internal`: `_processPayment()`.<br>• `private pure`: `_calculateFee()`. |
+| **1** | **TiposDeDados** | • `uint256`: valores em wei (`amount`, `accumulatedFees`), IDs, limites de tamanho/janela (`MIN_DELIVERY_WINDOW`, `MAX_DELIVERY_WINDOW`, `REVIEW_WINDOW`) e timestamps (`createdAt`, `dueDate`, `completedAt`).<br>• `int256`: score de reputação com suporte a variações positivas e negativas (`DEFAULT_INITIAL_REPUTATION = 100`, `reputationDelta`).<br>• `bool`: circuit breaker operacional (`isActive`), trava de reentrância (`_locked`) e participação em projetos.<br>• `address` e `address payable`: carteiras `owner`, `client` e `freelancer`.<br>• `string`: `title`, `description` e `deliveryUrl` (link para auditoria).<br>• `bytes32`: `deliveryHash` validado via `keccak256(bytes(deliveryUrl))`.<br>• `constant` e `immutable`: `PLATFORM_FEE_PERCENTAGE`, `REVIEW_WINDOW`, `DEFAULT_INITIAL_REPUTATION` e `owner`. |
+| **2** | **Funções** | • `constructor`: define `owner`.<br>• `external payable`: `createProject()` recebe o depósito do escrow.<br>• `external`: `acceptProject`, `deliverProject`, `approveAndComplete`, `claimAfterReviewTimeout`, `cancelProject`, `openDispute`, `resolveDispute`, `withdrawFees`, `toggleContractActive`.<br>• `external view`: `getProject()`, `getUserReputation()` e `getUserProjects()`.<br>• `public pure`: `calculateNetValue()`.<br>• `internal` e `private`: `_processPayment()`, `_settleToFreelancer()` e `_calculateFee()`. |
 | **3** | **EstruturasDeControle** | • `require`: validação de paginação (`require(limit > 0 && limit <= 50, ...)`).<br>• `if / else if / else`: verificação de cancelamento normal vs. cancelamento por atraso de `dueDate` em `cancelProject`, bonificação/penalização condicional em `resolveDispute` e validações com `revert`.<br>• Laço `for` com limite controlado: paginação limitada a 50 registros em `getUserProjects`. |
-| **4** | **ArraysEMappings** | • Array dinâmico: `uint256[] private _allIds`.<br>• Mappings simples: `mapping(uint256 => Project) public projects` e `mapping(address => int256) public reputationDelta`.<br>• Mapping aninhado: `mapping(address => mapping(uint256 => bool)) public participatedProjects`. |
+| **4** | **ArraysEMappings** | • Array dinâmico: `uint256[] private _allIds`.<br>• Mappings simples: `mapping(uint256 => Project) public projects`, `mapping(uint256 => uint256) public deliveredAt` e `mapping(address => int256) public reputationDelta`.<br>• Mapping aninhado: `mapping(address => mapping(uint256 => bool)) public participatedProjects`. |
 | **5** | **StructsEEnums** | • `enum ProjectStatus`: 6 estados (`Open`, `InProgress`, `Delivered`, `Completed`, `Canceled`, `InDispute`).<br>• `struct Project`: 12 campos (`id`, `client`, `freelancer`, `amount`, `title`, `description`, `deliveryUrl`, `deliveryHash`, `status`, `createdAt`, `dueDate`, `completedAt`). |
-| **6** | **Modificadores** | • Sem parâmetro: `onlyOwner()`.<br>• Com parâmetros: `inStatus(uint256 id, ProjectStatus expected)`, `onlyClient(uint256 id)` e `onlyFreelancer(uint256 id)`. |
-| **7** | **EventosEErros** | • 9 eventos (`indexed`): `ProjectCreated`, `ProjectAccepted`, `ProjectDelivered`, `ProjectCompleted`, `ProjectCanceled`, `DisputeOpened`, `DisputeResolved`, `FeesWithdrawn`, `ContractStatusToggled`.<br>• 9 erros customizados: `InvalidAmount`, `InvalidData`, `AccessDenied`, `IncorrectStatus`, `PaymentFailed`, `InvalidPercentage`, `ProjectNotFound`, `DeadlineNotExpired`, `ContractPaused`. |
+| **6** | **Modificadores** | • Sem parâmetro: `onlyOwner()` e `nonReentrant()`.<br>• Com parâmetros: `inStatus(uint256 id, ProjectStatus expected)`, `onlyClient(uint256 id)` e `onlyFreelancer(uint256 id)`. |
+| **7** | **EventosEErros** | • 9 eventos (`indexed`): `ProjectCreated`, `ProjectAccepted`, `ProjectDelivered`, `ProjectCompleted`, `ProjectCanceled`, `DisputeOpened`, `DisputeResolved`, `FeesWithdrawn`, `ContractStatusToggled`.<br>• 10 erros customizados: `InvalidAmount`, `InvalidData`, `AccessDenied`, `IncorrectStatus`, `PaymentFailed`, `InvalidPercentage`, `ProjectNotFound`, `DeadlineNotExpired`, `ReviewWindowNotExpired`, `ContractPaused`. |
 
 ---
 
@@ -102,27 +105,49 @@ Além dos *getters* automáticos de variáveis públicas (`owner`, `PLATFORM_FEE
 ```text
 smart-freela/
 ├── contracts/
-│   └── smart-freela.sol              # Contrato inteligente Solidity ^0.8.24 (7 grupos marcados + NatSpec)
+│   └── SmartFreela.sol                   # Contrato inteligente Solidity ^0.8.24 (7 grupos + NatSpec)
 ├── frontend/
-│   ├── index.html                    # Estrutura HTML5 semântica + Web3.js 4.16.0 via CDN
-│   ├── styles.css                    # Identidade visual e responsividade (corresponde ao style.css do guia)
-│   ├── app.js                        # Integração MetaMask, .call(), .send(), eventos e tratamento de erros
-│   └── config.js                     # Endereço na Sepolia e ABI do contrato (corresponde ao contrato.js do guia)
+│   ├── index.html                        # Estrutura HTML5 semântica + Web3.js 4.16.0 via CDN
+│   ├── app.js                            # Entrypoint ES Module que inicializa o bootstrap
+│   ├── css/
+│   │   ├── base.css                      # Variáveis de tema, reset, grid principal, header e footer
+│   │   ├── components.css                # Componentes (cards, banners, formulários, mural e feed)
+│   │   └── modals.css                    # Estilos de modais de entrega, disputa e diálogos assíncronos
+│   └── js/
+│       ├── bootstrap.js                  # Composição de dependências e roteamento de eventos DOM
+│       ├── config/
+│       │   ├── contract.js               # Endereço na Sepolia e ABI do contrato
+│       │   ├── domain.js                 # Constantes de domínio (ZERO_ADDRESS, status labels)
+│       │   └── network.js                # Parâmetros da rede Ethereum Sepolia e Etherscan
+│       ├── controllers/
+│       │   ├── Connection.controller.js  # Conexão MetaMask, troca de rede Sepolia, saldo e reputação
+│       │   ├── DataSync.controller.js    # Sincronização de projetos, deliveredAt, eventos e filtros
+│       │   ├── Dispute.controller.js     # Abertura/resolução de disputas e governança do owner
+│       │   └── Project.controller.js     # Criação, aceite, entrega, aprovação, resgate e cancelamento
+│       ├── domain/
+│       │   ├── AppState.js               # Estado centralizado da aplicação, contadores e filtros
+│       │   └── ProjectValidator.js       # Validações de formulário, limites, UTC dueDate e URLs HTTP/HTTPS
+│       ├── infra/
+│       │   ├── abiMeta.js                # Introspecção automática da ABI e campos da struct Project
+│       │   └── txRunner.js               # Executor padronizado de transações com feedback e retry pós-tx
+│       ├── services/
+│       │   ├── EscrowContract.service.js # Chamadas .call(), .send(), eventos e tradução de erros RPC
+│       │   └── Wallet.service.js         # Integração com window.ethereum e provedor Web3
+│       └── ui/
+│           ├── UIRenderer.js             # Fachada (Facade) da camada de apresentação
+│           ├── components/               # Componentes isolados (Navbar, Banner, Form, Board, Admin, Feed)
+│           ├── core/                     # Utilitários DOM (DomHelper) e diálogo assíncrono (DialogPrimitive)
+│           └── modals/                   # Modais de entrega (DeliveryModal) e disputa (DisputeModal)
 ├── docs/
-│   ├── arquitetura.md                # Arquitetura técnica, matriz de permissões, diagramas e rastreabilidade SDD
-│   └── prints/                       # Capturas do Etherscan, MetaMask e Frontend (Remix a adicionar)
-│       ├── etherscan-contrato-1.png
-│       ├── etherscan-contrato-2.png
-│       ├── frontend-1.png
-│       ├── frontend-2.png
-│       └── metamask.png
+│   ├── arquitetura.md                    # Arquitetura técnica, matriz de permissões, diagramas e SDD
+│   └── prints/                           # Evidências visuais (Etherscan, MetaMask e Frontend)
 ├── test/
-│   ├── baseline.test.js              # Verificação básica do ambiente Hardhat
-│   └── SmartFreela.test.js           # Suíte de testes unitários do contrato (fluxo completo e reversões)
-├── index.html                        # Redirecionamento na raiz para /frontend/
-├── vercel.json                       # Rewrites para publicação estática na Vercel
-├── hardhat.config.js                 # Configuração local de compilação e testes (Solidity 0.8.24)
-└── README.md                         # Documentação principal do trabalho
+│   ├── baseline.test.js                  # Verificação básica do ambiente Hardhat
+│   └── SmartFreela.test.js               # Suíte de testes unitários do contrato
+├── index.html                            # Redirecionamento na raiz para /frontend/
+├── vercel.json                           # Rewrites para publicação estática na Vercel
+├── hardhat.config.js                     # Configuração local de compilação e testes (Solidity 0.8.24)
+└── README.md                             # Documentação principal do trabalho
 ```
 
 ---
@@ -179,13 +204,14 @@ npm test
 
 ## 9. Decisões de Arquitetura, Segurança e Dificuldades Contornadas
 
-1. **Separação On-Chain vs. Off-Chain:** Apenas valores em wei, endereços, estado e o hash `bytes32` da entrega são gravados na blockchain, reduzindo custos de gas.
-2. **Proteção contra Reentrância (Checks-Effects-Interactions):** Em `aprovarEFinalizar`, `cancelarProjeto`, `resolverDisputa` e `sacarTaxas`, todas as alterações de estado ocorrem antes das chamadas `.call{value: ...}("")`.
-3. **Custom Errors para Economia de Gas:** Substituição de strings longas em `require` por `error ...` + `revert ...`.
-4. **Dificuldades Contornadas durante o Desenvolvimento:**
-   * **Decodificação de erros na Web3.js 4.x:** Implementada a função `tratarErro()` em [frontend/app.js](frontend/app.js#L809-L832) para traduzir erros `4001`, `-32002`, falta de saldo e os erros customizados do contrato para português claro.
-   * **Troca automática para Sepolia:** Implementado `wallet_switchEthereumChain` com fallback para `wallet_addEthereumChain` caso a Sepolia ainda não esteja habilitada.
-   * **Geração de `bytes32` na interface:** O modal de entrega utiliza `web3.utils.sha3()` para converter links/textos em hash Keccak-256 de 32 bytes antes do envio.
+1. **Separação On-Chain vs. Off-Chain:** Apenas valores em wei, endereços, timestamps, estado e o hash `bytes32` da entrega são gravados na blockchain, reduzindo custos de gas.
+2. **Proteção contra Reentrância (`nonReentrant` + CEI):** Todas as funções que movimentam ETH (`approveAndComplete`, `claimAfterReviewTimeout`, `cancelProject`, `resolveDispute` e `withdrawFees`) aplicam o modificador `nonReentrant` e atualizam o estado antes das transferências via `.call{value: ...}("")`.
+3. **Janela de Revisão Pós-Entrega (`REVIEW_WINDOW`) e Simetria Econômica:** Caso o cliente não aprove nem conteste uma entrega em até 7 dias (`deliveredAt[id] + REVIEW_WINDOW`), o freelancer pode resgatar seu pagamento líquido via `claimAfterReviewTimeout`. Nas disputas (`resolveDispute`), a taxa de 2% incide proporcionalmente apenas sobre a parcela repassada ao freelancer.
+4. **Arquitetura Frontend Modular em Camadas:** Código organizado em ES Modules nativos (`config`, `domain`, `infra`, `services`, `ui`, `controllers` e `bootstrap`) e CSS modular (`base.css`, `components.css`, `modals.css`), sem necessidade de bundler no deploy estático da Vercel.
+5. **Dificuldades Contornadas durante o Desenvolvimento:**
+   * **Decodificação de erros na Web3.js 4.x:** Implementada a tradução de erros RPC (`4001`, `-32002`, saldo insuficiente) e erros customizados da ABI em [frontend/js/services/EscrowContract.service.js](frontend/js/services/EscrowContract.service.js) usando metadados derivados em [frontend/js/infra/abiMeta.js](frontend/js/infra/abiMeta.js).
+   * **Validação de domínio e URLs:** Implementado [frontend/js/domain/ProjectValidator.js](frontend/js/domain/ProjectValidator.js) com limites de caracteres (`title` ≤ 80, `description` ≤ 1500), validação de prazo futuro em UTC (`T23:59:59Z`) e exigência de URLs `http://` ou `https://` válidas na entrega.
+   * **Sincronização pós-mineração na Sepolia:** Adicionado re-sync automático em [frontend/js/controllers/DataSync.controller.js](frontend/js/controllers/DataSync.controller.js) e [frontend/js/infra/txRunner.js](frontend/js/infra/txRunner.js) para absorver atrasos de propagação do RPC público após transações.
 
 ---
 
@@ -193,7 +219,7 @@ npm test
 
 ### Limitações Conhecidas
 * **Mediação centralizada no `owner`:** Caso uma disputa seja aberta antes do vencimento do prazo, a decisão da divisão percentual depende da carteira implantadora (`owner`).
-* **Listagem sequencial no frontend:** O mural principal consulta de `1` até `totalProjects` via `getProject(i)`; em cenários de alto volume, a interface deve priorizar a função paginada `getUserProjects(user, startIndex, limit)`.
+* **Listagem sequencial no frontend:** O mural principal consulta de `1` até `totalProjects` via `getProject(i)` e busca `deliveredAt(i)` para entregas pendentes de revisão; em cenários de alto volume, a interface deve priorizar a função paginada `getUserProjects(user, startIndex, limit)`.
 * **Verificação de conteúdo off-chain:** O contrato valida matematicamente que o `deliveryHash` corresponde à `deliveryUrl` informada, mas a verificação qualitativa do código/site no link continua dependendo da auditoria visual do cliente ou mediador.
 
 ### Melhorias Futuras
