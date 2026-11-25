@@ -12,25 +12,31 @@ contract SmartFreela {
     // =========================================================================
     // [Recurso: TiposDeDados]
     address public immutable owner;
-    uint256 public constant PLATFORM_FEE_PERCENTAGE = 2; // 2% de taxa retida na liquidação
-    uint256 private constant MAX_PROJECT_TITLE_LEN = 50; 
+    uint256 public constant PLATFORM_FEE_PERCENTAGE = 2; // 2% de taxa retida sobre repasses ao freelancer
+    uint256 public constant MIN_DELIVERY_WINDOW = 1 hours;
+    uint256 public constant MAX_DELIVERY_WINDOW = 365 days;
+    uint256 public constant REVIEW_WINDOW = 7 days; // Prazo de revisão do cliente após entrega
+    uint256 private constant MAX_PROJECT_TITLE_LEN = 80;
     uint256 private constant MAX_PROJECT_DESC_LEN = 1500;
-    int256 public constant DEFAULT_INITIAL_REPUTATION = 100; // Reputação base (uso funcional de int256)
+    uint256 private constant MAX_DELIVERY_URL_LEN = 2048;
+    int256 public constant DEFAULT_INITIAL_REPUTATION = 100;
+
     uint256 public totalProjects;
     uint256 public accumulatedFees;
-    bool public isActive = true; // Circuit breaker operacional do contrato
+    bool public isActive = true;
+    bool private _locked;
 
     // =========================================================================
     // 2. STRUCTS E ENUMS
     // =========================================================================
     // [Recurso: StructsEEnums]
     enum ProjectStatus {
-        Open,       // 0: Aguardando aceite de um freelancer
+        Open, // 0: Aguardando aceite de um freelancer
         InProgress, // 1: Aceito e em desenvolvimento
-        Delivered,  // 2: Trabalho concluído e aguardando aprovação
-        Completed,  // 3: Aprovado e pago ao freelancer
-        Canceled,   // 4: Cancelado (antes do início ou por estouro de prazo)
-        InDispute   // 5: Em mediação pelo administrador
+        Delivered, // 2: Trabalho concluído e aguardando aprovação
+        Completed, // 3: Aprovado e pago ao freelancer
+        Canceled, // 4: Cancelado (antes do início ou por estouro de prazo)
+        InDispute // 5: Em mediação pelo administrador
     }
 
     struct Project {
@@ -40,11 +46,11 @@ contract SmartFreela {
         uint256 amount;
         string title;
         string description;
-        string deliveryUrl;   // Link legível do entregável para auditoria do cliente/mediador
+        string deliveryUrl; // Link legível do entregável para auditoria do cliente/mediador
         bytes32 deliveryHash; // Impressão digital Keccak-256 (bytes32) do entregável
         ProjectStatus status;
         uint256 createdAt;
-        uint256 dueDate;      // Prazo limite (timestamp) para entrega
+        uint256 dueDate; // Prazo limite (timestamp) para entrega
         uint256 completedAt;
     }
 
@@ -54,10 +60,9 @@ contract SmartFreela {
     // [Recurso: ArraysEMappings]
     uint256[] private _allIds;
     mapping(uint256 => Project) public projects;
-    // Mapping simples com int256 para variação de reputação on-chain
-    mapping(address => int256) public reputationDelta;
-    // Mapping aninhado: rastreia se um endereço participou de determinado projeto
-    mapping(address => mapping(uint256 => bool)) public participatedProjects;
+    mapping(uint256 => uint256) public deliveredAt; // janela de revisão pos-entrega
+    mapping(address => int256) public reputationDelta; // variação de reputação on-chain
+    mapping(address => mapping(uint256 => bool)) public participatedProjects; // rastreia se um endereço participou de determinado projeto
 
     // =========================================================================
     // 4. EVENTOS E ERROS PERSONALIZADOS
@@ -98,6 +103,10 @@ contract SmartFreela {
     error InvalidPercentage();
     error ProjectNotFound();
     error DeadlineNotExpired(uint256 dueDate, uint256 currentTimestamp);
+    error ReviewWindowNotExpired(
+        uint256 reviewDeadline,
+        uint256 currentTimestamp
+    );
     error ContractPaused();
 
     // =========================================================================
@@ -107,6 +116,13 @@ contract SmartFreela {
     modifier onlyOwner() {
         if (msg.sender != owner) revert AccessDenied();
         _;
+    }
+
+    modifier nonReentrant() {
+        if (_locked) revert AccessDenied();
+        _locked = true;
+        _;
+        _locked = false;
     }
 
     modifier inStatus(uint256 id, ProjectStatus expected) {
@@ -154,7 +170,8 @@ contract SmartFreela {
             bytes(title).length > MAX_PROJECT_TITLE_LEN ||
             bytes(description).length == 0 ||
             bytes(description).length > MAX_PROJECT_DESC_LEN ||
-            dueDate <= block.timestamp
+            dueDate < block.timestamp + MIN_DELIVERY_WINDOW ||
+            dueDate > block.timestamp + MAX_DELIVERY_WINDOW
         ) revert InvalidData();
 
         totalProjects++;
@@ -217,17 +234,20 @@ contract SmartFreela {
         string calldata deliveryUrl,
         bytes32 deliveryHash
     ) external inStatus(id, ProjectStatus.InProgress) onlyFreelancer(id) {
-        if (bytes(deliveryUrl).length == 0 || deliveryHash == bytes32(0)) {
-            revert InvalidData();
-        }
         // Garante on-chain a integridade entre o texto enviado e o hash bytes32
-        if (keccak256(bytes(deliveryUrl)) != deliveryHash) {
+        if (
+            bytes(deliveryUrl).length == 0 ||
+            bytes(deliveryUrl).length > MAX_DELIVERY_URL_LEN ||
+            deliveryHash == bytes32(0) ||
+            keccak256(bytes(deliveryUrl)) != deliveryHash
+        ) {
             revert InvalidData();
         }
 
         projects[id].deliveryUrl = deliveryUrl;
         projects[id].deliveryHash = deliveryHash;
         projects[id].status = ProjectStatus.Delivered;
+        deliveredAt[id] = block.timestamp;
 
         emit ProjectDelivered(id, deliveryHash, deliveryUrl);
     }
@@ -238,20 +258,49 @@ contract SmartFreela {
      */
     function approveAndComplete(
         uint256 id
-    ) external inStatus(id, ProjectStatus.Delivered) onlyClient(id) {
-        // Effects
-        projects[id].status = ProjectStatus.Completed;
-        projects[id].completedAt = block.timestamp;
-        reputationDelta[projects[id].freelancer] += 10;
+    )
+        external
+        nonReentrant
+        inStatus(id, ProjectStatus.Delivered)
+        onlyClient(id)
+    {
+        _settleToFreelancer(id);
+    }
 
-        uint256 fee = _calculateFee(projects[id].amount);
-        uint256 netValue = projects[id].amount - fee;
+    /**
+     * @notice Permite ao freelancer concluir e receber o pagamento caso o prazo de revisão
+     * do cliente (REVIEW_WINDOW) expire após a entrega sem abertura de disputa.
+     */
+    function claimAfterReviewTimeout(
+        uint256 id
+    )
+        external
+        nonReentrant
+        inStatus(id, ProjectStatus.Delivered)
+        onlyFreelancer(id)
+    {
+        uint256 baseTimestamp = deliveredAt[id];
+        uint256 reviewDeadline = baseTimestamp + REVIEW_WINDOW;
+        if (baseTimestamp == 0 || block.timestamp <= reviewDeadline) {
+            revert ReviewWindowNotExpired(reviewDeadline, block.timestamp);
+        }
+
+        _settleToFreelancer(id);
+    }
+
+    function _settleToFreelancer(uint256 id) private {
+        Project storage p = projects[id];
+        p.status = ProjectStatus.Completed;
+        p.completedAt = block.timestamp;
+        reputationDelta[p.freelancer] += 10;
+
+        uint256 fee = _calculateFee(p.amount);
+        uint256 netValue = p.amount - fee;
         accumulatedFees += fee;
 
-        // Interactions
-        _processPayment(projects[id].freelancer, netValue);
+        _processPayment(p.freelancer, netValue);
 
-        emit ProjectCompleted(id, projects[id].freelancer, netValue);
+        emit ProjectCompleted(id, p.freelancer, netValue);
     }
 
     /**
@@ -295,26 +344,26 @@ contract SmartFreela {
      * @dev Permitido livremente se Open, ou se InProgress caso o prazo (dueDate) tenha expirado sem entrega.
      * @param id Identificador do projeto.
      */
-    function cancelProject(uint256 id) external onlyClient(id) {
+    function cancelProject(uint256 id) external nonReentrant onlyClient(id) {
         if (projects[id].id == 0) revert ProjectNotFound();
-        ProjectStatus currentStatus = projects[id].status;
+        Project storage p = projects[id];
+        ProjectStatus currentStatus = p.status;
 
-        // [Recurso: EstruturasDeControle] - if / else if / else
         if (currentStatus == ProjectStatus.Open) {
-            projects[id].status = ProjectStatus.Canceled;
+            p.status = ProjectStatus.Canceled;
         } else if (currentStatus == ProjectStatus.InProgress) {
-            if (block.timestamp <= projects[id].dueDate) {
-                revert DeadlineNotExpired(projects[id].dueDate, block.timestamp);
+            if (block.timestamp <= p.dueDate) {
+                revert DeadlineNotExpired(p.dueDate, block.timestamp);
             }
-            projects[id].status = ProjectStatus.Canceled;
+            p.status = ProjectStatus.Canceled;
             // Penaliza a reputação do freelancer por inadimplência de prazo
-            reputationDelta[projects[id].freelancer] -= 15;
+            reputationDelta[p.freelancer] -= 15;
         } else {
             revert IncorrectStatus(currentStatus, ProjectStatus.Open);
         }
 
-        projects[id].completedAt = block.timestamp;
-        _processPayment(projects[id].client, projects[id].amount);
+        p.completedAt = block.timestamp;
+        _processPayment(p.client, p.amount);
 
         emit ProjectCanceled(id, msg.sender);
     }
@@ -325,65 +374,70 @@ contract SmartFreela {
      */
     function openDispute(uint256 id) external {
         if (projects[id].id == 0) revert ProjectNotFound();
-        if (
-            msg.sender != projects[id].client &&
-            msg.sender != projects[id].freelancer
-        ) {
+        Project storage p = projects[id];
+
+        if (msg.sender != p.client && msg.sender != p.freelancer) {
             revert AccessDenied();
         }
         if (
-            projects[id].status != ProjectStatus.InProgress &&
-            projects[id].status != ProjectStatus.Delivered
+            p.status != ProjectStatus.InProgress &&
+            p.status != ProjectStatus.Delivered
         ) {
-            revert IncorrectStatus(
-                projects[id].status,
-                ProjectStatus.InProgress
-            );
+            revert IncorrectStatus(p.status, ProjectStatus.InProgress);
         }
 
-        projects[id].status = ProjectStatus.InDispute;
+        p.status = ProjectStatus.InDispute;
 
         emit DisputeOpened(id, msg.sender);
     }
 
     /**
      * @notice O administrador resolve a disputa definindo a divisão percentual dos fundos.
+     * @dev Mantém simetria econômica: taxa de plataforma incide apenas sobre o repasse ao freelancer.
      * @param id Identificador do projeto.
      * @param freelancerPercentage Percentual (0 a 100) destinado ao freelancer.
      */
     function resolveDispute(
         uint256 id,
         uint256 freelancerPercentage
-    ) external onlyOwner inStatus(id, ProjectStatus.InDispute) {
+    ) external nonReentrant onlyOwner inStatus(id, ProjectStatus.InDispute) {
         if (freelancerPercentage > 100) revert InvalidPercentage();
 
-        projects[id].status = ProjectStatus.Completed;
-        projects[id].completedAt = block.timestamp;
+        Project storage p = projects[id];
+        p.status = ProjectStatus.Completed;
+        p.completedAt = block.timestamp;
 
         if (freelancerPercentage >= 50) {
-            reputationDelta[projects[id].freelancer] += 5;
+            reputationDelta[p.freelancer] += 5;
         } else {
-            reputationDelta[projects[id].freelancer] -= 10;
+            reputationDelta[p.freelancer] -= 10;
         }
 
-        uint256 freelancerAmount = (projects[id].amount *
-            freelancerPercentage) / 100;
-        uint256 clientAmount = projects[id].amount - freelancerAmount;
+        uint256 grossFreelancerShare = (p.amount * freelancerPercentage) / 100;
+        uint256 clientAmount = p.amount - grossFreelancerShare;
 
-        if (freelancerAmount > 0) {
-            _processPayment(projects[id].freelancer, freelancerAmount);
+        uint256 fee = grossFreelancerShare > 0
+            ? _calculateFee(grossFreelancerShare)
+            : 0;
+        uint256 netFreelancerAmount = grossFreelancerShare - fee;
+
+        if (fee > 0) {
+            accumulatedFees += fee;
+        }
+        if (netFreelancerAmount > 0) {
+            _processPayment(p.freelancer, netFreelancerAmount);
         }
         if (clientAmount > 0) {
-            _processPayment(projects[id].client, clientAmount);
+            _processPayment(p.client, clientAmount);
         }
 
-        emit DisputeResolved(id, freelancerAmount, clientAmount);
+        emit DisputeResolved(id, netFreelancerAmount, clientAmount);
     }
 
     /**
      * @notice Permite ao dono retirar as taxas da plataforma acumuladas.
      */
-    function withdrawFees() external onlyOwner {
+    function withdrawFees() external nonReentrant onlyOwner {
         uint256 amount = accumulatedFees;
         if (amount == 0) revert InvalidAmount();
 

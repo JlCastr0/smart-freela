@@ -13,3 +13,5 @@ export const PROJECT_STATUS_LABELS = [
 
 export const EVENTS_LOOKBACK_BLOCKS = 9000n;
 export const EVENTS_FEED_LIMIT = 10;
+
+export const REVIEW_WINDOW_SECONDS = 7 * 24 * 60 * 60;

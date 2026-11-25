@@ -25,6 +25,8 @@ const CUSTOM_ERROR_MESSAGES = {
     "Falha no Pagamento: a transferência de ETH não foi concluída pelo contrato.",
   ProjectNotFound:
     "Projeto Não Encontrado: o identificador informado não existe no contrato.",
+  ReviewWindowNotExpired:
+    "O prazo de revisão de 7 dias após a entrega ainda não expirou para resgate automático.",
 };
 
 /**
@@ -107,6 +109,12 @@ export class EscrowContractService {
     return callBuilder.call();
   }
 
+    // Em LEITURAS ON-CHAIN (.call):
+  async getDeliveredAt(projectId) {
+    const ts = await this.callMethod("deliveredAt", [projectId]);
+    return Number(ts || 0);
+  }
+
   /**
    * Executa uma transação de escrita (.send) validada pela ABI.
    */
@@ -147,6 +155,16 @@ export class EscrowContractService {
     }
 
     return receipt;
+  }
+
+  // Em ESCRITAS ON-CHAIN (.send):
+  claimAfterReviewTimeout(projectId, callbacks) {
+    return this.sendMethod(
+      "claimAfterReviewTimeout",
+      [projectId],
+      {},
+      callbacks
+    );
   }
 
   /**

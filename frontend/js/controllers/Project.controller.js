@@ -125,4 +125,24 @@ export class ProjectController {
       `Projeto #${projectId} aprovado! Pagamento liberado e reputação do freelancer bonificada (+10 pts)`
     );
   }
+
+  async claimAfterReviewTimeout(projectId) {
+    if (!(await this.txRunner.ensureReady())) return;
+
+    const confirmed = await this.ui.showConfirmModal({
+      title: "⏳ Resgatar Pagamento Após Prazo de Revisão",
+      message:
+        "O prazo de revisão de 7 dias após a entrega expirou sem aprovação ou disputa do cliente. Deseja concluir o projeto, receber o valor líquido (com 2% de taxa da plataforma) e registrar +10 pts de reputação?",
+      confirmText: "Resgatar Pagamento",
+      variant: "primary",
+    });
+
+    if (!confirmed) return;
+
+    await this.txRunner.run(
+      (callbacks) =>
+        this.contract.claimAfterReviewTimeout(projectId, callbacks),
+      `Pagamento do projeto #${projectId} resgatado com sucesso após expiração do prazo de revisão`
+    );
+  }
 }

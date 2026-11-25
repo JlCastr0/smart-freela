@@ -177,6 +177,9 @@ export class SmartFreelaBootstrap {
       case "open-resolve-modal":
         this.disputeCtrl.openResolveModal(projectId);
         break;
+      case "claim-review-timeout":
+        await this.projectCtrl.claimAfterReviewTimeout(projectId);
+        break;
       default:
         break;
     }

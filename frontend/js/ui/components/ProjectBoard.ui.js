@@ -2,6 +2,7 @@ import {
   PROJECT_STATUS_LABELS,
   ZERO_ADDRESS,
   ZERO_BYTES32,
+  REVIEW_WINDOW_SECONDS
 } from "../../config/domain.js";
 
 /**
@@ -111,9 +112,17 @@ export class ProjectBoardUI {
       }
     } else if (statusNum === 2) {
       // Delivered
+      const deliveredSec = Number(p.deliveredAt || 0);
+      const reviewExpired =
+        deliveredSec > 0 && nowSec > deliveredSec + REVIEW_WINDOW_SECONDS;
+
       if (isClient) {
         actions.push(
           `<button type="button" class="btn btn-sm btn-primary" data-action="approve-project" data-project-id="${p.id}">✅ Aprovar & Liberar Pagamento</button>`
+        );
+      } else if (isFreelancer && reviewExpired) {
+        actions.push(
+          `<button type="button" class="btn btn-sm btn-primary" data-action="claim-review-timeout" data-project-id="${p.id}">⏳ Resgatar Pagamento (Prazo de Revisão Expirado)</button>`
         );
       }
     } else if (statusNum === 5) {

@@ -69,7 +69,24 @@ export class DataSyncController {
 
     try {
       const projects = await this.contract.getAllProjectsOrdered();
-      this.state.setProjects(projects);
+
+      const enrichedProjects = await Promise.all(
+        projects.map(async (project) => {
+          if (Number(project.status) !== 2) {
+            return project;
+          }
+          try {
+            const deliveredTimestamp = await this.contract.getDeliveredAt(
+              project.id
+            );
+            return { ...project, deliveredAt: deliveredTimestamp };
+          } catch {
+            return { ...project, deliveredAt: 0 };
+          }
+        })
+      );
+
+      this.state.setProjects(enrichedProjects);
       this.renderBoard();
     } catch (err) {
       if (!this.state.loadedProjects || this.state.loadedProjects.length === 0) {

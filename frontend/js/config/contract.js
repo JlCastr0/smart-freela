@@ -1,6 +1,6 @@
 // Endereço do contrato SmartFreela na rede Ethereum Sepolia.
 // Não esqueça de colar aqui o novo endereço após fazer o deploy do contrato refatorado no Remix.
-export const CONTRACT_ADDRESS = "0x4a795A43995351675eeB7Ca59e06AE4168919CA9";
+export const CONTRACT_ADDRESS = "0x6cEa8A66e406Fe9862344839c6b9d07fc16b0e93";
 
 export const CONTRACT_ABI = [
 	{
@@ -73,6 +73,22 @@ export const CONTRACT_ABI = [
 	{
 		"inputs": [],
 		"name": "ProjectNotFound",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "reviewDeadline",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "currentTimestamp",
+				"type": "uint256"
+			}
+		],
+		"name": "ReviewWindowNotExpired",
 		"type": "error"
 	},
 	{
@@ -285,7 +301,46 @@ export const CONTRACT_ABI = [
 	},
 	{
 		"inputs": [],
+		"name": "MAX_DELIVERY_WINDOW",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "MIN_DELIVERY_WINDOW",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "PLATFORM_FEE_PERCENTAGE",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "REVIEW_WINDOW",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -370,6 +425,19 @@ export const CONTRACT_ABI = [
 	{
 		"inputs": [
 			{
+				"internalType": "uint256",
+				"name": "id",
+				"type": "uint256"
+			}
+		],
+		"name": "claimAfterReviewTimeout",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
 				"internalType": "string",
 				"name": "title",
 				"type": "string"
@@ -417,6 +485,25 @@ export const CONTRACT_ABI = [
 		"name": "deliverProject",
 		"outputs": [],
 		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "deliveredAt",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
