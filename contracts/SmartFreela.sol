@@ -13,6 +13,8 @@ contract SmartFreela {
     // [Recurso: TiposDeDados]
     address public immutable owner;
     uint256 public constant PLATFORM_FEE_PERCENTAGE = 2; // 2% de taxa retida na liquidação
+    uint256 private constant MAX_PROJECT_TITLE_LEN = 50; 
+    uint256 private constant MAX_PROJECT_DESC_LEN = 1500;
     int256 public constant DEFAULT_INITIAL_REPUTATION = 100; // Reputação base (uso funcional de int256)
     uint256 public totalProjects;
     uint256 public accumulatedFees;
@@ -149,7 +151,9 @@ contract SmartFreela {
         if (msg.value == 0) revert InvalidAmount();
         if (
             bytes(title).length == 0 ||
+            bytes(title).length > MAX_PROJECT_TITLE_LEN ||
             bytes(description).length == 0 ||
+            bytes(description).length > MAX_PROJECT_DESC_LEN ||
             dueDate <= block.timestamp
         ) revert InvalidData();
 

@@ -4,21 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Smart Freela — Escrow Descentralizado na Sepolia</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="./css/base.css">
+  <link rel="stylesheet" href="./css/components.css">
+  <link rel="stylesheet" href="./css/modals.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:ital,wght@0,100..900;1,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Roboto+Mono:ital,wght@0,100..700;1,100..700&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/web3@4.16.0/dist/web3.min.js"></script>
-  <script src="config.js"></script>
 </head>
 <body>
   <!-- CABEÇALHO -->
   <header>
     <div class="brand">
       <div class="eyebrow">DAPP ETHEREUM SEPOLIA · TRABALHO PRÁTICO</div>
-        <h1>💼 Smart Freela</h1>
+      <h1>💼 Smart Freela</h1>
       <p class="sentence">Custódia financeira descentralizada para serviços freelance sem intermediários abusivos</p>
     </div>
+
     <div class="network-box">
       <span id="networkDot" class="dot"></span>
       <div class="network-info">
@@ -27,12 +29,13 @@
         <span id="walletBalance" class="balance-badge"></span>
         <span id="walletReputation" class="balance-badge" hidden></span>
       </div>
-      <button id="connectBtn" class="btn btn-connect">Conectar MetaMask</button>
+      <button type="button" id="connectBtn" class="btn btn-connect">Conectar MetaMask</button>
     </div>
   </header>
 
-  <!-- BANNER GLOBAL DE STATUS & FEEDBACK DE TRANSAÇÕES -->
-  <div class="container">
+  <!-- VIEW PRINCIPAL: DASHBOARD -->
+  <div class="container" data-view="dashboard">
+    <!-- BANNER GLOBAL DE STATUS & FEEDBACK DE TRANSAÇÕES -->
     <div id="statusBanner" class="status-banner neutral" hidden>
       <div class="status-content">
         <span id="statusIcon">ℹ️</span>
@@ -43,44 +46,71 @@
 
     <!-- CONTRATO NÃO CONFIGURADO (AVISO) -->
     <div id="contractWarning" class="alert-warning" hidden>
-      ⚠️ <strong>Atenção:</strong> O endereço do contrato ainda não foi configurado em <code>frontend/config.js</code>. Faça o deploy no Remix e insira o endereço.
+      ⚠️ <strong>Atenção:</strong> O endereço do contrato ainda não foi configurado em <code>frontend/js/config/contract.js</code>. Faça o deploy no Remix e insira o endereço.
     </div>
 
     <!-- GRID PRINCIPAL -->
     <main class="grid-main">
-      
-      <!-- COLUNA DA ESQUERDA: Formulários e Ações -->
+
+      <!-- COLUNA DA ESQUERDA: FORMULÁRIOS, ADMIN E EVENTOS -->
       <div class="col-actions">
 
         <!-- CARD: CRIAR NOVO PROJETO -->
-        <section class="card">
+        <section class="card" aria-labelledby="headingCreateProject">
           <div class="card-header">
-            <h2>➕ Publicar Novo Projeto</h2>
+            <h2 id="headingCreateProject">➕ Publicar Novo Projeto</h2>
             <span class="card-badge">Cliente</span>
           </div>
           <p class="card-desc">Deposite o valor acordado em ETH no smart contract. O pagamento só é liberado ao freelancer após sua aprovação.</p>
-          
-          <form id="formCreateProject" onsubmit="return false;">
+
+          <form id="formCreateProject" novalidate>
             <div class="form-group">
               <label for="projectTitle">Título do Projeto</label>
-              <input type="text" id="projectTitle" placeholder="Ex: Criação de Landing Page em HTML/CSS" required maxlength="80">
+              <input
+                type="text"
+                id="projectTitle"
+                name="projectTitle"
+                placeholder="Ex: Criação de Landing Page em HTML/CSS"
+                required
+                maxlength="80"
+                autocomplete="off"
+              >
             </div>
 
             <div class="form-group">
               <label for="projectDescription">Descrição & Requisitos</label>
-              <textarea id="projectDescription" rows="3" placeholder="Detalhes dos requisitos, prazos e entregáveis esperados..." required></textarea>
+              <textarea
+                id="projectDescription"
+                name="projectDescription"
+                rows="3"
+                placeholder="Detalhes dos requisitos, prazos e entregáveis esperados..."
+                required
+              ></textarea>
             </div>
 
-            <!-- CAMPO: DUE DATE -->
             <div class="form-group">
               <label for="projectDueDate">Prazo de Entrega (Due Date)</label>
-              <input type="date" id="projectDueDate" required>
+              <input
+                type="date"
+                id="projectDueDate"
+                name="projectDueDate"
+                required
+              >
+              <small class="form-hint">Considerado até 23:59:59 UTC na data selecionada.</small>
             </div>
 
             <div class="form-group">
               <label for="projectAmount">Depósito em Garantia (ETH)</label>
               <div class="input-eth-wrapper">
-                <input type="number" id="projectAmount" placeholder="0.05" step="0.001" min="0.0001" required>
+                <input
+                  type="number"
+                  id="projectAmount"
+                  name="projectAmount"
+                  placeholder="0.05"
+                  step="0.001"
+                  min="0.0001"
+                  required
+                >
                 <span class="eth-tag">ETH</span>
               </div>
               <small class="form-hint">Taxa de protocolo: 2% retida apenas na aprovação final.</small>
@@ -93,9 +123,9 @@
         </section>
 
         <!-- CARD: PAINEL ADMINISTRATIVO DO DONO -->
-        <section id="cardAdmin" class="card admin-card" hidden>
+        <section id="cardAdmin" class="card admin-card" aria-labelledby="headingAdminPanel" hidden>
           <div class="card-header">
-            <h2>🛡️ Painel do Administrador</h2>
+            <h2 id="headingAdminPanel">🛡️ Painel do Administrador</h2>
             <span class="card-badge admin-badge">Dono</span>
           </div>
           <p class="card-desc">Controle de governança exclusivo da carteira proprietária (immutable).</p>
@@ -120,9 +150,9 @@
         </section>
 
         <!-- CARD: FEED DE ATIVIDADES / EVENTOS ON-CHAIN -->
-        <section class="card">
+        <section class="card" aria-labelledby="headingEventsFeed">
           <div class="card-header">
-            <h2>📡 Feed de Eventos On-Chain</h2>
+            <h2 id="headingEventsFeed">📡 Feed de Eventos On-Chain</h2>
             <span class="card-badge info-badge">Sepolia</span>
           </div>
           <p class="card-desc">Eventos emitidos em tempo real pelo contrato inteligente.</p>
@@ -130,32 +160,30 @@
             <div class="feed-empty">Conecte sua carteira para carregar o histórico de eventos.</div>
           </div>
         </section>
+
       </div>
 
-      <!-- COLUNA DA DIREITA: Feed de Projetos -->
+      <!-- COLUNA DA DIREITA: MURAL DE PROJETOS -->
       <div class="col-projects">
-        <section class="card projects-container-card">
+        <section class="card projects-container-card" aria-labelledby="headingProjectBoard">
           <div class="card-header flex-header">
             <div>
-              <h2>📋 Mural de Demandas Freelance</h2>
+              <h2 id="headingProjectBoard">📋 Mural de Demandas Freelance</h2>
               <p class="card-desc">Explore os projetos abertos, acompanhe os seus ou submeta entregas.</p>
             </div>
-            <button id="btnRefresh" class="btn btn-sm btn-outline">🔄 Atualizar</button>
+            <button type="button" id="btnRefresh" class="btn btn-sm btn-outline">🔄 Atualizar</button>
           </div>
 
-          <!-- FILTROS -->
-          <div class="filter-tabs">
-            <button class="tab active" data-filter="all">Todos (<span id="totalAll">0</span>)</button>
-            <button class="tab" data-filter="open">Abertos (<span id="totalOpen">0</span>)</button>
-            <button class="tab" data-filter="mine">Meus Projetos (<span id="totalMine">0</span>)</button>
+          <div class="filter-tabs" role="tablist" aria-label="Filtrar projetos">
+            <button type="button" class="tab active" data-filter="all">Todos (<span id="totalAll">0</span>)</button>
+            <button type="button" class="tab" data-filter="open">Abertos (<span id="totalOpen">0</span>)</button>
+            <button type="button" class="tab" data-filter="mine">Meus Projetos (<span id="totalMine">0</span>)</button>
           </div>
 
-          <!-- LISTA DINÂMICA DE PROJETOS -->
           <div id="listProjects" class="projects-list">
             <div class="loading-state">Carregando projetos da blockchain...</div>
           </div>
 
-          <!-- ESTADO VAZIO -->
           <div id="emptyProjects" class="empty-state" hidden>
             <p>Nenhum projeto encontrado nesta categoria.</p>
           </div>
@@ -166,58 +194,71 @@
   </div>
 
   <!-- MODAL: SUBMETER ENTREGA DE PROJETO -->
-  <div id="modalDelivery" class="modal-backdrop" hidden>
+  <div id="modalDelivery" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalDeliveryTitle" hidden>
     <div class="modal">
       <div class="modal-header">
-        <h3>🚀 Submeter Comprovante de Entrega</h3>
-        <button class="btn-close" onclick="closeModalDelivery()">×</button>
+        <h3 id="modalDeliveryTitle">🚀 Submeter Comprovante de Entrega</h3>
+        <button type="button" class="btn-close" data-close-modal="modalDelivery" aria-label="Fechar modal de entrega">×</button>
       </div>
       <div class="modal-body">
         <p>Informe o link público do seu entregável (repositório GitHub, deploy na Vercel ou IPFS). O link ficará visível para auditoria do cliente juntamente com seu hash criptográfico Keccak-256 (<code>bytes32</code>) on-chain.</p>
         <div class="form-group">
           <label for="deliveryText">URL de Entrega (Repositório / Deploy)</label>
-          <input type="url" id="deliveryText" placeholder="https://github.com/usuario/projeto" oninput="generateLocalHash()">
+          <input
+            type="url"
+            id="deliveryText"
+            name="deliveryText"
+            placeholder="https://github.com/usuario/projeto"
+            autocomplete="off"
+          >
         </div>
         <div class="form-group">
-          <label>Hash de Integridade Gerado (bytes32 que será validado on-chain):</label>
+          <label for="previewDeliveryHash">Hash de Integridade Gerado (bytes32 que será validado on-chain):</label>
           <code id="previewDeliveryHash" class="hash-code">0x0000000000000000000000000000000000000000000000000000000000000000</code>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="closeModalDelivery()">Cancelar</button>
+        <button type="button" class="btn btn-secondary" data-close-modal="modalDelivery">Cancelar</button>
         <button type="button" id="btnConfirmDelivery" class="btn btn-primary">Registrar Entrega On-Chain</button>
       </div>
     </div>
   </div>
 
   <!-- MODAL: RESOLVER DISPUTA (DONO) -->
-  <div id="modalDispute" class="modal-backdrop" hidden>
+  <div id="modalDispute" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalDisputeTitle" hidden>
     <div class="modal">
       <div class="modal-header">
-        <h3>⚖️ Mediação de Disputa</h3>
-        <button class="btn-close" onclick="closeModalDispute()">×</button>
+        <h3 id="modalDisputeTitle">⚖️ Mediação de Disputa</h3>
+        <button type="button" class="btn-close" data-close-modal="modalDispute" aria-label="Fechar modal de disputa">×</button>
       </div>
       <div class="modal-body">
         <p>Defina a porcentagem do depósito em caução que será repassada ao freelancer. O restante retornará ao cliente.</p>
         <div class="form-group">
           <label for="freelancerPercentage">Percentual para o Freelancer (0 a 100%):</label>
-          <input type="number" id="freelancerPercentage" min="0" max="100" value="50" oninput="updateDisputePreview()">
+          <input
+            type="number"
+            id="freelancerPercentage"
+            name="freelancerPercentage"
+            min="0"
+            max="100"
+            value="50"
+          >
           <span class="form-hint" id="previewDisputeSplit">Freelancer: 50% | Cliente: 50%</span>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="closeModalDispute()">Cancelar</button>
+        <button type="button" class="btn btn-secondary" data-close-modal="modalDispute">Cancelar</button>
         <button type="button" id="btnConfirmResolution" class="btn btn-danger">Executar Resolução On-Chain</button>
       </div>
     </div>
   </div>
 
   <!-- MODAL DINÂMICO DE CONFIRMAÇÃO E ALERTA -->
-  <div id="modalDialog" class="modal-backdrop" hidden>
+  <div id="modalDialog" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="dialogTitle" hidden>
     <div class="modal">
       <div class="modal-header">
         <h3 id="dialogTitle">Confirmação</h3>
-        <button type="button" class="btn-close" id="btnCloseDialog">×</button>
+        <button type="button" class="btn-close" id="btnCloseDialog" aria-label="Fechar diálogo">×</button>
       </div>
       <div class="modal-body">
         <p id="dialogMessage"></p>
@@ -237,6 +278,6 @@
     </div>
   </footer>
 
-  <script src="app.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
