@@ -52,7 +52,7 @@ stateDiagram-v2
 
 * **Contrato Inteligente:** `SmartFreela` ([contracts/SmartFreela.sol](contracts/SmartFreela.sol))
 * **Rede:** Ethereum Sepolia Testnet (`Chain ID: 11155111` / `0xaa36a7`)
-* **Endereço do Contrato:** `0x8eABC60d6C8DEeD4D9cf148522Cc9cbd45e76E8e` *(atualize caso tenha feito novo deploy da Opção A)*
+* **Endereço do Contrato:** `0x6cEa8A66e406Fe9862344839c6b9d07fc16b0e93` *(atualize caso tenha feito novo deploy da Opção A)*
 * **Carteira Criadora (`owner` / Contract Creator):** `0xC1F78...F63D5` *(insira o endereço completo da carteira PedroYutaroUEA)*
 * **Link no Sepolia Etherscan:** [https://sepolia.etherscan.io/address/0x8eABC60d6C8DEeD4D9cf148522Cc9cbd45e76E8e](https://sepolia.etherscan.io/address/0x8eABC60d6C8DEeD4D9cf148522Cc9cbd45e76E8e)
 * **URL da dApp na Vercel:** [https://smart-freela-test-zcep.vercel.app/frontend/](https://smart-freela-test-zcep.vercel.app/frontend/)
